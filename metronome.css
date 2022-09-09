@@ -1,0 +1,362 @@
+
+.MetronomeContainer {
+	--background-1: #171A1C;
+	--background-2: #22272A;
+	--background-3: #2E3438;
+	--background-4: #454E54;
+	--background-5: #546168;
+	--background-6: #606d75;
+	--background-7: #6c7b85;
+
+	--blue: #66CDFE;
+	--yellow: #FFD966;
+
+	position: relative;
+	display: flex;
+	flex-direction: column;
+
+	color: white;
+	background-color: var(--background-1);
+}
+
+.MetronomeContainer > .timeline {
+	display: flex;
+	flex-direction: row;
+}
+
+.MetronomeContainer > .timeline > .timer {
+	padding: 16px 24px;
+	background-color: var(--background-3);
+}
+
+.MetronomeContainer > .timeline > .timer > .time {
+	width: 224px;
+	font-family: "Torus Pro";
+	font-size: 46px;
+	font-weight: 300;
+}
+
+.MetronomeContainer > .timeline > .timer > .time > span {
+	display: inline-block;
+	width: 28px;
+	text-align: center;
+}
+
+.MetronomeContainer > .timeline > .timer > .time > sep {
+	font-weight: 400;
+}
+
+.MetronomeContainer > .timeline > .timer > .bpm {
+	margin-bottom: 8px;
+	font-weight: 700;
+	color: var(--yellow);
+}
+
+.MetronomeContainer > .timeline > .graph {
+	position: relative;
+	flex-grow: 1;
+	flex-shrink: 1;
+
+	background-color: var(--background-2);
+	overflow-x: scroll;
+	overflow-y: hidden;
+}
+
+.MetronomeContainer > .timeline > .graph::-webkit-scrollbar {
+	display: none;
+}
+
+.MetronomeContainer > .timeline > .graph > .inner {
+	position: absolute;
+	height: 100%;
+
+	left: 50%;
+}
+
+.MetronomeContainer > .timeline > .graph > .inner > .ticks {
+	position: absolute;
+	height: 100%;
+}
+
+.MetronomeContainer > .timeline > .graph > .inner > .ticks > div {
+	position: absolute;
+
+	top: 50%;
+	height: 60%;
+	width: 3px;
+	transform: translate(-50%, -50%);
+
+	background-color: white;
+	border-radius: 8px;
+}
+
+.MetronomeContainer > .timeline > .graph > .inner > .ticks > div.downbeat {
+	width: 5px;
+	height: 80%;
+}
+
+.MetronomeContainer > .timeline > .graph > .cursor {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	left: 50%;
+	transform: translateX(-50%);
+}
+
+.MetronomeContainer > .timeline > .button {
+	flex-shrink: 0;
+	display: grid;
+	place-items: center;
+
+	width: 120px;
+	color: black;
+	background-color: white;
+	cursor: pointer;
+}
+
+.MetronomeContainer > .timeline > .button.play {
+	background-color: var(--blue);
+}
+
+.MetronomeContainer > .timeline > .button.stop {
+	background-color: var(--yellow);
+}
+
+.MetronomeContainer > .timeline > .button::after {
+	content: "\f111";
+	position: relative;
+
+	font-family: "Font Awesome Free";
+	font-size: 24px;
+	font-weight: 600;
+}
+
+.MetronomeContainer > .timeline > .button.play::after {
+	content: "\f04b";
+}
+
+.MetronomeContainer > .timeline > .button.play.pause::after {
+	content: "\f04c";
+}
+
+.MetronomeContainer > .timeline > .button.stop::after {
+	content: "\f04d";
+}
+
+.MetronomeContainer > .view {
+	display: flex;
+	flex-direction: row;
+	flex-grow: 1;
+}
+
+.MetronomeContainer > .view > .meters {
+	position: relative;
+	display: flex;
+	flex-direction: row;
+
+	--width: 180px;
+	--rate: 0.1s;
+
+	width: var(--width);
+	padding: 20px 20px 60px 10px;
+	background-color: var(--background-4);
+}
+
+.MetronomeContainer > .view > .meters > .ruler {
+	position: relative;
+	width: 30px;
+	margin: 20px 10px 50px 0;
+	z-index: 1;
+}
+
+.MetronomeContainer > .view > .meters > .ruler > div {
+	position: absolute;
+	right: 0;
+	text-align: right;
+	transform: translateY(50%);
+}
+
+.MetronomeContainer > .view > .meters > .ruler > div::before {
+	content: "";
+	position: absolute;
+	display: block;
+	
+	top: 50%;
+	transform: translateY(-50%);
+	height: 2px;
+	width: 6px;
+	right: -20px;
+
+	background-color: var(--background-6);
+}
+
+.MetronomeContainer > .view > .meters > .ruler > div.step::before {
+	width: 12px;
+}
+
+.MetronomeContainer > .view > .meters > .ruler > div.line::before {
+	width: calc(var(--width) - 38px);
+	right: calc(var(--width) - 330px);
+
+	background-color: rgba(255, 255, 255, 0.3);
+}
+
+.MetronomeContainer > .view > .meters > .channel {
+	position: relative;
+	flex-grow: 1;
+	margin: 20px 0 50px 10px;
+	background-color: var(--background-2);
+}
+
+.MetronomeContainer > .view > .meters > .channel > .label {
+	position: absolute;
+
+	bottom: -30px;
+	left: 50%;
+	transform: translateX(-50%);
+	padding: 1px 6px;
+
+	color: black;
+	font-weight: 600;
+	background-color: white;
+}
+
+.MetronomeContainer > .view > .meters > .channel > .value {
+	position: absolute;
+
+	width: 80px;
+	bottom: -60px;
+	left: 50%;
+	text-align: center;
+	transform: translateX(-50%);
+}
+
+.MetronomeContainer > .view > .meters > .channel > .bar {
+	position: absolute;
+	bottom: 0;
+	left: 0;
+	width: 100%;
+	background-color: var(--blue);
+	transition: height var(--rate) linear;
+}
+
+.MetronomeContainer > .view > .meters > .channel > .clip {
+	position: absolute;
+	top: -20px;
+	width: 100%;
+	height: 14px;
+
+	background-color: rgb(46, 26, 26);
+}
+
+.MetronomeContainer > .view > .meters > .channel > .max {
+	position: absolute;
+	display: block;
+
+	bottom: 0;
+	left: 0;
+	width: 100%;
+	height: 3px;
+	background-color: red;
+	transition: bottom var(--rate) linear;
+}
+
+.MetronomeContainer > .view > .meters > .label {
+	position: absolute;
+	bottom: 20px;
+	left: 20px;
+}
+
+.MetronomeContainer > .view > .panels {
+	display: flex;
+	flex-direction: column;
+	flex-grow: 1;
+	padding: 10px;
+}
+
+.MetronomeContainer > .view > .panels > div {
+	margin: 10px;
+	padding: 20px;
+	background-color: var(--background-3);
+	border-radius: 16px;
+}
+
+.MetronomeContainer .metronome {
+	position: relative;
+	display: inline-flex;
+}
+
+.MetronomeContainer .metronome > .swing {
+	position: absolute;
+	height: 184px;
+	bottom: 40px;
+	left: calc(50% - 3px);
+	transform-origin: bottom center;
+
+	--duration: 1s;
+}
+
+.MetronomeContainer .metronome > .swing > .stick {
+	position: relative;
+	display: block;
+
+	width: 6px;
+	height: 100%;
+	border-radius: 8px;
+	background-color: #47B4EB;
+}
+
+.MetronomeContainer .metronome > .swing.beat > .stick {
+	animation-name: swing-beat;
+	animation-duration: var(--duration);
+	animation-timing-function: linear;
+	animation-fill-mode: forwards;
+	animation-iteration-count: 1;
+}
+
+.MetronomeContainer .metronome > .swing > .weight {
+	position: absolute;
+	top: 6%;
+	left: 50%;
+	transform: translateX(-50%);
+	transition: top 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.MetronomeContainer .metronome > .pin {
+	position: absolute;
+	bottom: 34px;
+	left: 50%;
+	transform: translateX(-50%);
+
+	width: 16px;
+	height: 16px;
+	border-radius: 24px;
+	background-color: var(--blue);
+}
+
+.MetronomeContainer .metronome > .lock {
+	position: absolute;
+	top: 0;
+	left: 50%;
+	transform: translateX(-50%);
+}
+
+.MetronomeContainer .metronome > .cover {
+	position: absolute;
+	bottom: 0;
+	left: 0;
+}
+
+.MetronomeContainer .metronome > .value {
+	position: absolute;
+	bottom: 8px;
+	left: 50%;
+	transform: translateX(-50%);
+	text-align: center;
+}
+
+
+@keyframes swing-beat {
+	0% { background-color: #b9e8ff; }
+	100% { background-color: #47B4EB; }
+}
