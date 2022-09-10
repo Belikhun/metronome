@@ -15,6 +15,8 @@ const metronome = {
 	/** @type {TreeDOM} */
 	timingPanel: undefined,
 
+	SAMPLE_PER_SEC: 40,
+
 	METER_MIN: -69,
 	METER_MAX: 5,
 	METER_STEP: 5,
@@ -22,7 +24,9 @@ const metronome = {
 	METER_UPDATE: 60,
 	meterLastUpdate: 0,
 
+	/** Pixels per tick */
 	tickScale: 80,
+	pxPerSecond: 1,
 
 	currentSwingRotate: 0,
 	currentBPM: 0,
@@ -30,7 +34,6 @@ const metronome = {
 	currentTime: 0,
 
 	currentTick: -1,
-	currentSwingTick: -1,
 	timePerBeat: 1,
 	timelineWidth: 0,
 
@@ -41,6 +44,7 @@ const metronome = {
 	reUpdate: false,
 	alternate: false,
 	playing: false,
+	swingLeft: true,
 
 	/** @type {HTMLElement[]} */
 	tickBars: [],
@@ -48,6 +52,9 @@ const metronome = {
 	audio: {
 		/** @type {HTMLAudioElement} */
 		instance: undefined,
+
+		/** @type {AudioBuffer} */
+		buffer: undefined,
 
 		/** @type {AudioContext} */
 		context: undefined,
@@ -66,6 +73,8 @@ const metronome = {
 
 		/** @type {Uint8Array} */
 		rightData: undefined,
+
+		points: [],
 
 		leftMax: 0,
 		rightMax: 0,
@@ -87,8 +96,14 @@ const metronome = {
 	/**
 	 * Initialize metronome inside this container
 	 * @param	{HTMLElement}	container
+	 * @param	{Object}		options
+	 * @param	{Number}		options.bpm			Beat per minute
+	 * @param	{Number}		options.scale		Timeline scale (pixels per beat)
 	 */
-	async init(container) {
+	async init(container, {
+		bpm = 60,
+		scale = 80
+	} = {}) {
 		this.timeline = makeTree("div", "timeline", {
 			timer: { tag: "span", class: "timer", child: {
 				time: { tag: "div", class: "time", child: {
@@ -109,8 +124,8 @@ const metronome = {
 			}},
 
 			graph: { tag: "span", class: "graph", child: {
+				preview: { tag: "canvas", class: "preview" },
 				inner: { tag: "div", class: "inner", child: {
-					preview: { tag: "div", class: "preview" },
 					ticks: { tag: "div", class: "ticks" },
 				}},
 
@@ -183,7 +198,8 @@ const metronome = {
 		// Init
 		this.meters.style.setProperty("--rate", `${this.METER_UPDATE}ms`);
 		this.initMeterRuler();
-		this.bpm = 60;
+		this.bpm = bpm;
+		this.scale = scale;
 
 		await this.initSounds();
 	},
@@ -251,29 +267,41 @@ const metronome = {
 
 	/**
 	 * Prepare a audio file
-	 * @param	{HTMLAudioElement}		audio
+	 * @param	{String|File}	audio
 	 */
 	async load(audio) {
+		this.audio.context = new AudioContext();
+
+		if (typeof audio === "string") {
+			let response = await fetch(audio);
+			let clone = response.clone();
+			this.audio.buffer = await this.audio.context.decodeAudioData(await response.arrayBuffer());
+			this.audio.instance = new Audio(URL.createObjectURL(await clone.blob()));
+		} else {
+			this.audio.buffer = await this.audio.context.decodeAudioData(audio);
+		}
+
 		// Check audio not fully loaded
-		if (audio.readyState < 4) {
+		if (this.audio.instance.readyState < 4) {
 			clog("INFO", "Audio is not fully loaded, wait for it to fully load...");
 
 			await new Promise((resolve) => {
 				clog("OKAY", "Audio loaded.");
-				audio.addEventListener("canplaythrough", () => resolve());
+				this.audio.instance.addEventListener("canplaythrough", () => resolve());
 			});
 		}
 
-		this.audio.instance = audio;
-		this.audio.duration = audio.duration;
+		this.audio.duration = this.audio.instance.duration;
+
+		this.sampleDataPoints();
 		this.renderTicks();
 
-		this.audio.context = undefined;
+		await this.audioInit();
 		this.reset();
+		this.time = 0;
 	},
 
-	audioInit() {
-		this.audio.context = new AudioContext();
+	async audioInit() {
 		this.audio.splitter = this.audio.context.createChannelSplitter(2);
 		this.audio.left = this.audio.context.createAnalyser();
 		this.audio.right = this.audio.context.createAnalyser();
@@ -290,44 +318,152 @@ const metronome = {
 		source.connect(this.audio.splitter);
 		source.connect(this.audio.context.destination);
 	},
+	
+	sampleDataPoints() {
+		let start = performance.now();
+		clog("DEBG", "sampling data points...");
 
-	play() {
+		this.audio.points = [];
+
+		for (let c of [0, 1]) {
+			this.audio.points[c] = [];
+
+			let raw = this.audio.buffer.getChannelData(c);
+			let samples = Math.floor(this.SAMPLE_PER_SEC * this.audio.duration);
+			const blockSize = Math.floor(raw.length / samples);
+			
+			for (let i = 0; i < samples; i++) {
+				let blockStart = blockSize * i;
+				let sum = 0;
+	
+				for (let j = 0; j < blockSize; j++)
+					sum += Math.abs(raw[blockStart + j]);
+	
+				this.audio.points[c].push(sum / blockSize);
+			}
+	
+			const multiplier = Math.pow(Math.max(...this.audio.points[c]), -1);
+			this.audio.points[c] = this.audio.points[c].map(i => i * multiplier);
+		}
+
+		clog("DEBG", `sampling complete! took ${performance.now() - start}ms`);
+	},
+
+	/**
+	 * Draw waveform onto canvas
+	 * @param	{HTMLCanvasElement}			canvas
+	 * @param	{Number}					from
+	 * @param	{Number}					length
+	 * @param	{Number}					shift	Shift factor
+	 */
+	drawWaveform(canvas, from, length, shift = 0) {
+		if (!this.audio.points[0] || !this.audio.points[1])
+			return;
+
+		let width = canvas.width = canvas.clientWidth;
+		let height = canvas.height = canvas.clientHeight;
+
+		from -= (length / 2) * shift;
+		length = length * (1 - shift);
+
+		let ctx = canvas.getContext("2d");
+		let start = from * this.SAMPLE_PER_SEC;
+		let count = length * this.SAMPLE_PER_SEC;
+		let fStart = Math.floor(start);
+		let fCount = Math.floor(count);
+		let to = fStart + fCount;
+		let data, x;
+
+		ctx.clearRect(0, 0, width, height);
+
+		// Left channel on top
+		ctx.beginPath();
+		ctx.moveTo(0, height / 2);
+
+		for (let i = fStart; i < to; i++) {
+			data = this.audio.points[0][i] || 0;
+
+			if (data === 0)
+				continue;
+
+			x = (width / count) * (i - start);
+			ctx.lineTo(x, (height / 2) * (1 - data));
+		}
+
+		// End left
+		ctx.lineTo(width, height / 2);
+		ctx.closePath();
+		ctx.fillStyle = "blue";
+		ctx.fill();
+
+		// Right channel on bottom
+		ctx.beginPath();
+		ctx.moveTo(0, height / 2);
+
+		for (let i = fStart; i < to; i++) {
+			data = this.audio.points[1][i] || 0;
+
+			if (data === 0)
+				continue;
+
+			x = (width / count) * (i - start);
+			ctx.lineTo(x, height - (height / 2) * (1 - data));
+		}
+
+		// End left
+		ctx.lineTo(width, height / 2);
+		ctx.closePath();
+		ctx.fillStyle = "blue";
+		ctx.fill();
+	},
+
+	async play() {
 		if (!this.audio.instance)
 			return;
 
-		// Only init audio features after user interaction.
-		if (!this.audio.context)
-			this.audioInit();
+		if (this.audio.context.state === "suspended")
+			await this.audio.context.resume();
 
 		this.playing = true;
 		this.timeline.play.classList.add("pause");
-		this.audio.instance.play();
+		await this.audio.instance.play();
 		this.startUpdate();
+
+		// Decrease current swing tick to re-calculate time to
+		// next tick.
+		this.currentSwingTick -= 1;
 	},
 
-	pause() {
+	async pause() {
 		if (!this.audio.instance)
 			return;
 
 		this.playing = false;
 		this.timeline.play.classList.remove("pause");
-		this.audio.instance.pause();
+		await this.audio.instance.pause();
 		this.stopUpdate();
-		this.swing(this.timePerBeat, "latch");
+		this.swing(this.timePerBeat * 2, "latch");
 	},
 
-	toggle() {
+	async toggle() {
 		if (this.playing)
-			this.pause();
+			await this.pause();
 		else
-			this.play();
+			await this.play();
 	},
 
-	stop() {
-		this.pause();
+	async stop() {
+		await this.pause();
 		this.audio.instance.currentTime = 0;
 		this.time = 0;
 		this.reset();
+	},
+
+	completed() {
+		clog("INFO", "Playback ended, stopped updating.");
+		this.stopUpdate();
+		this.time = this.audio.duration;
+		this.swing(this.timePerBeat * 2, "latch");
 	},
 
 	reset() {
@@ -337,6 +473,7 @@ const metronome = {
 	startUpdate() {
 		cancelAnimationFrame(this.updateRequest);
 		this.reUpdate = true;
+		this.reset();
 		this.update();
 	},
 
@@ -356,21 +493,19 @@ const metronome = {
 		let oTime = this.time - this.offset;
 		let tick = (oTime / this.timePerBeat);
 
-		// Only update beat when we are out of offset
-		// time.
-		if (oTime > 0) {
-			// Swing tick have a little offset.
-			let sTick = (oTime + (this.timePerBeat * 0.5)) / this.timePerBeat;
-	
-			if (sTick > (this.currentSwingTick + 1)) {
-				this.currentSwingTick = Math.floor(sTick);
-				this.swing(this.timePerBeat, this.currentSwingTick);
-			}
+		// Sudden timing change to main tick,
+		// update current tick.
+		if (Math.abs(tick - this.currentTick) >= 1.2)
+			this.currentTick = Math.floor(tick) - 1;
 
-			if (tick > (this.currentTick + 1)) {
-				this.currentTick = Math.floor(tick);
-				clog("DEBG", "tick", this.currentTick);
-			}
+		if (tick > (this.currentTick + 1)) {
+			this.currentTick = Math.floor(tick);
+			let nextTickTime = (this.currentTick + 1) * this.timePerBeat;
+			let toNextTick = nextTickTime - oTime;
+			let shouldTick = Math.abs(toNextTick - this.timePerBeat) < 0.05;
+
+			clog("DEBG", "------ tick", this.currentTick, `nextTickTime = ${nextTickTime}`, `toNextTick = ${toNextTick}`, `shouldTick = ${shouldTick}`);
+			this.swing(toNextTick, shouldTick ? this.currentTick : "no");
 		}
 
 		// Update left right data
@@ -398,7 +533,7 @@ const metronome = {
 	},
 
 	renderTicks() {
-		let ticks = Math.floor((this.audio.duration - this.offset) / this.timePerBeat);
+		let ticks = Math.floor(this.audio.duration / this.timePerBeat);
 		
 		this.timelineWidth = this.tickScale * ticks;
 		this.timeline.graph.inner.ticks.style.width = `${this.timelineWidth}px`;
@@ -416,6 +551,19 @@ const metronome = {
 
 			this.tickBars[tick].style.left = `${this.tickScale * tick}px`;
 		}
+
+		// Remove unused ticks
+		for (let tick = ticks + 1; tick < this.tickBars.length; tick++) {
+			if (this.tickBars[tick]) {
+				this.timeline.graph.inner.ticks.removeChild(this.tickBars[tick]);
+				delete this.tickBars[tick];
+			}
+		}
+	},
+
+	renderWaveform() {
+		let duration = (this.timeline.graph.preview.clientWidth / (this.tickScale / 2)) * this.timePerBeat;
+		this.drawWaveform(this.timeline.graph.preview, this.time, duration, 0.5);
 	},
 
 	/**
@@ -448,46 +596,92 @@ const metronome = {
 
 	/**
 	 * Swing back and forth by specified duration.
-	 * @param	{Number}			duration
-	 * @param	{Number | "latch"}	tick
+	 * @param	{Number}					duration		Duration to tick
+	 * @param	{Number | "latch" | "no"}	tick
 	 */
-	swing(duration, tick) {
+	async swing(duration, tick) {
 		if (this.swingAnimator)
 			this.swingAnimator.cancel();
 
-		let start = this.currentSwingRotate;
-		let toLeft = (start <= 0);
-		let target = (tick === "latch") ? 0 : (toLeft ? 30 : -30);
-		let amount = target - start;
-
-		let soundPlayed = false;
-		this.timingPanel.top.metronome.swing.classList.remove("beat");
 		this.timingPanel.top.metronome.swing.style
-			.setProperty("--duration", `${duration * 0.8}s`);
+			.setProperty("--duration", `${duration}s`);
 
-		this.swingAnimator = new Animator(duration, Easing.InOutQuart, (t) => {
+		let start = this.currentSwingRotate;
+
+		if (tick === "latch") {
+			// Already locked, nothing to do.
+			if (start === 0)
+				return;
+
+			let target = 0;
+			let amount = target - start;
+
+			// Easy return to neutral
+			this.swingAnimator = new Animator(duration, Easing.InOutCubic, (t) => {
+				this.swingRotate = start + (amount * t);
+			});
+
+			await this.swingAnimator.complete();
+			this.playSound(this.sounds.latch);
+			return;
+		}
+
+		// Play sound first
+		if (tick !== "no")
+			this.tickSound(tick);
+
+		let target = this.swingLeft ? 30 : -30;
+		let amount = target - start;
+		this.swingLeft = !this.swingLeft;
+		
+		clog(`DEBG`, `swing 1st half start = ${start} -> ${target}`);
+
+		// First half to go to edge.
+		this.swingAnimator = new Animator(duration / 2, Easing.OutCubic, (t) => {
 			this.swingRotate = start + (amount * t);
-
-			if (!soundPlayed
-				&& ((toLeft && this.swingRotate >= 0)
-				|| (!toLeft && this.swingRotate <= 0))) {
-
-				if (tick === "latch") {
-					if (t === 1)
-						this.playSound(this.sounds.latch);
-				} else {
-					// Play tick sound
-					if (tick % 4 === 0)
-						this.playSound(this.sounds.tickDownbeat);
-					else
-						this.playSound(this.sounds.tick);
-	
-					this.timingPanel.top.metronome.swing.classList.add("beat");
-				}
-
-				soundPlayed = true;
-			}
 		});
+
+		// Animation is completed but not fully done, indicating it's
+		// been cancelled.
+		if (!await this.swingAnimator.complete())
+			return;
+
+		this.timingPanel.top.metronome.swing.classList.remove("beat");
+
+		// First tick, only swing first half.
+		if (tick === 0 && start === 0)
+			return;
+
+		// Do the other half
+		start = this.currentSwingRotate;
+		target = 0;
+		amount = target - start;
+
+		clog(`DEBG`, `swing 2nd half start = ${start} -> ${target}`);
+
+		this.swingAnimator = new Animator(duration / 2, Easing.InCubic, (t) => {
+			this.swingRotate = start + (amount * t);
+		});
+
+		await this.swingAnimator.complete();
+	},
+
+	tickSound(tick) {
+		clog("DEBG", "sound tick", tick);
+
+		// Play tick sound
+		if (tick % 4 === 0)
+			this.playSound(this.sounds.tickDownbeat);
+		else
+			this.playSound(this.sounds.tick);
+
+		this.timingPanel.top.metronome.swing.classList.add("beat");
+	},
+
+	updateOffsetWidth() {
+		let offsetWidth = this.pxPerSecond * this.offset;
+		clog("DEBG", `offsetWidth = ${offsetWidth}`);
+		this.timeline.graph.inner.ticks.style.marginLeft = `${offsetWidth}px`;
 	},
 
 	/**
@@ -517,7 +711,12 @@ const metronome = {
 		this.timingPanel.top.metronome.value.innerText = bpm;
 		this.timeline.timer.bpm.innerText = `${bpm} BPM`;
 		this.timePerBeat = 60 / bpm;
+		this.pxPerSecond = this.tickScale / this.timePerBeat;
+
+		this.reset();
 		this.renderTicks();
+		this.renderWaveform();
+		this.updateOffsetWidth();
 	},
 
 	/**
@@ -526,9 +725,9 @@ const metronome = {
 	 */
 	set offset(offset) {
 		this.currentOffset = offset;
-		let offsetWidth = (this.tickScale / this.timePerBeat) * offset;
-		clog("DEBG", `offsetWidth = ${offsetWidth}`);
-		this.timeline.graph.inner.ticks.style.marginLeft = `${offsetWidth}px`;
+		this.updateOffsetWidth();
+		this.renderWaveform();
+		this.renderTicks();
 	},
 
 	get offset() {
@@ -541,7 +740,9 @@ const metronome = {
 	 */
 	set time(currentTime) {
 		let pt = parseTime(currentTime, { msDigit: 3 });
-		let progress = (currentTime / this.audio.duration);
+
+		// Weird stuff... But it work
+		let progress = (currentTime / (this.audio.duration - this.offset + this.timePerBeat));
 
 		// I wish this font is fixed-width so I don't have
 		// to do this ugly hack...
@@ -553,11 +754,25 @@ const metronome = {
 		this.timeline.timer.time.ms2.innerText = pt.ms[1];
 		this.timeline.timer.time.ms3.innerText = pt.ms[2];
 
+		if (!this.playing)
+			this.audio.instance.currentTime = currentTime;
+
 		this.timeline.graph.inner.style.transform = `translateX(-${progress * this.timelineWidth}px)`;
 		this.currentTime = currentTime;
+		this.renderWaveform();
 	},
 
 	get time() {
 		return this.currentTime;
+	},
+
+	set scale(scale) {
+		this.tickScale = scale;
+		this.pxPerSecond = this.tickScale / this.timePerBeat;
+		this.renderTicks();
+	},
+
+	get scale() {
+		return this.tickScale;
 	}
 }
