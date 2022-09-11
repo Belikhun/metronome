@@ -401,14 +401,25 @@
 
 .MetronomeContainer .comparator > .row > span {
 	position: absolute;
-	left: 16px;
+	left: 12px;
 	top: 50%;
-	transform: translateY(-50%);
+	min-width: 32px;
+	padding: 0 2px;
+
+	text-align: right;
 	color: white;
+	border-radius: 4px;
+	background-color: rgba(0, 0, 0, 0.6);
+	transform: translateY(-50%);
 }
 
 .MetronomeContainer .comparator > .row[data-type="oob"] > span {
 	color: rgba(182, 182, 182, 0.6);
+}
+
+.MetronomeContainer .comparator > .row.downbeat > span {
+	color: black;
+	background-color: var(--yellow);
 }
 
 @keyframes swing-beat {

@@ -15,7 +15,7 @@ const metronome = {
 	/** @type {TreeDOM} */
 	timingPanel: undefined,
 
-	SAMPLE_PER_SEC: 80,
+	SAMPLE_PER_SEC: 120,
 
 	METER_MIN: -69,
 	METER_MAX: 5,
@@ -638,6 +638,9 @@ const metronome = {
 	
 				// Remove out of bound
 				for (let i = oFrom; i < oTo; i++) {
+					if (!this.comparators[i])
+						continue;
+
 					if (c.contains(this.comparators[i].node))
 						c.removeChild(this.comparators[i].node);
 					
@@ -662,6 +665,9 @@ const metronome = {
 				let canvas = document.createElement("canvas");
 				node.append(canvas, label);
 				this.comparators[i] = { tick: i, node, canvas, update: true }
+
+				if (i % 4 === 0)
+					node.classList.add("downbeat");
 			}
 
 			let cr = this.comparators[i];
