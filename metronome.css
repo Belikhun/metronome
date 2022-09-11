@@ -222,7 +222,7 @@
 	flex-direction: row;
 
 	width: 240px;
-	padding-bottom: 40px;
+	padding-bottom: 60px;
 	box-sizing: border-box;
 }
 
@@ -233,7 +233,7 @@
 	bottom: 0;
 	left: 0;
 	right: 0;
-	height: 40px;
+	height: 60px;
 }
 
 .MetronomeContainer > .timeline > .buttons .button {
