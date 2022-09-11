@@ -15,7 +15,7 @@ const metronome = {
 	/** @type {TreeDOM} */
 	timingPanel: undefined,
 
-	SAMPLE_PER_SEC: 120,
+	SAMPLE_PER_SEC: 300,
 
 	METER_MIN: -69,
 	METER_MAX: 5,
@@ -32,6 +32,7 @@ const metronome = {
 	currentBPM: 0,
 	currentOffset: 0,
 	currentTime: 0,
+	seekTarget: 0,
 
 	currentTick: -1,
 	timePerBeat: 1,
@@ -40,7 +41,12 @@ const metronome = {
 	/** @type {Animator} */
 	swingAnimator: undefined,
 
+	/** @type {Animator} */
+	seekAnimator: undefined,
+
 	updateRequest: undefined,
+	meterResetTimeout: undefined,
+	isLoading: false,
 	reUpdate: false,
 	alternate: false,
 	playing: false,
@@ -94,6 +100,8 @@ const metronome = {
 
 		leftMax: 0,
 		rightMax: 0,
+		leftMaxTime: 0,
+		rightMaxTime: 0,
 
 		duration: 0,
 	},
@@ -110,6 +118,20 @@ const metronome = {
 	},
 
 	/**
+	 * Log to console.
+	 * @param	{CLogLevel}		level	Log level
+	 * @param	{...CLogArg}	args	Log info
+	 */
+	log(level, ...args) {
+		clog(level, {
+			color: oscColor("pink"),
+			text: "metronome",
+			padding: 34,
+			separate: true
+		}, ...args);
+	},
+
+	/**
 	 * Initialize metronome inside this container
 	 * @param	{HTMLElement}	container
 	 * @param	{Object}		options
@@ -120,6 +142,9 @@ const metronome = {
 		bpm = 60,
 		scale = 80
 	} = {}) {
+		if (container && typeof container !== "object" || !container.tagName)
+			throw { code: -1, description: `metronome.init(): not a valid container!` }
+
 		this.timeline = makeTree("div", "timeline", {
 			timer: { tag: "span", class: "timer", child: {
 				time: { tag: "div", class: "time", child: {
@@ -145,7 +170,8 @@ const metronome = {
 					ticks: { tag: "div", class: "ticks" },
 				}},
 
-				cursor: { tag: "img", class: "cursor", src: "parts/timeCursor.svg" }
+				cursor: { tag: "img", class: "cursor", src: "parts/timeCursor.svg" },
+				loading: { tag: "div", class: "spinner" }
 			}},
 
 			play: { tag: "span", class: ["button", "play"] },
@@ -179,6 +205,8 @@ const metronome = {
 		});
 
 		this.timingPanel = makeTree("div", "timing", {
+			label: { tag: "label", text: "Timing" },
+
 			top: { tag: "div", class: "top", child: {
 				metronome: { tag: "div", class: "metronome", child: {
 					body: { tag: "img", class: "body", src: "parts/body.svg" },
@@ -205,10 +233,11 @@ const metronome = {
 						onInput: (value) => this.offset = this.currentOffset + (value / 1000)
 					}),
 
-					input: { tag: "div", class: "osc-input", child: {
-						label: { tag: "label", text: "Offset" },
-						input: { tag: "input", type: "number", value: 0 }
-					}}
+					input: createOscInput({
+						label: "Offset",
+						type: "number",
+						onEnter: (value) => this.offset = value / 1000
+					})
 				}},
 	
 				bpm: { tag: "div", class: "bpm", child: {
@@ -218,11 +247,32 @@ const metronome = {
 						onInput: (value) => this.bpm = this.currentBPM + value
 					}),
 
-					input: { tag: "div", class: "osc-input", child: {
-						label: { tag: "label", text: "BPM" },
-						input: { tag: "input", type: "number", value: 0 }
-					}}
+					input: createOscInput({
+						label: "BPM",
+						type: "number",
+						onEnter: (value) => this.bpm = value
+					})
 				}}
+			}},
+
+			inputs: { tag: "div", class: "inputs", child: {
+				scale: createOscInput({
+					type: "number",
+					label: "Scale",
+					onEnter: (value) => this.scale = value
+				}),
+
+				samples: createOscInput({
+					type: "number",
+					label: "SAMPLE_PER_SEC",
+					value: this.SAMPLE_PER_SEC,
+					onEnter: (value) => {
+						this.SAMPLE_PER_SEC = value;
+						this.sampleDataPoints();
+						this.renderWaveform();
+						this.renderComparator(this.currentTick);
+					}
+				})
 			}}
 		});
 
@@ -235,6 +285,12 @@ const metronome = {
 			}}
 		});
 
+		if (typeof Scrollable === "function") {
+			new Scrollable(this.view, {
+				content: this.view.panels
+			});
+		}
+
 		this.timingPanel.top.comparator.style.width = `${this.COMPARATOR_SIZE}px`;
 		this.timingPanel.top.comparator.style.height = `${this.COMPARATOR_SIZE}px`;
 		container.tabIndex = -1;
@@ -242,31 +298,25 @@ const metronome = {
 		container.append(this.timeline, this.view);
 		container.addEventListener("keydown", e => this.keyPress(e));
 
+		this.loading = true;
+
 		// Events
 		this.timeline.play.addEventListener("click", () => this.toggle());
 		this.timeline.stop.addEventListener("click", () => this.stop());
 
-		this.timingPanel.controls.offset.input.input.addEventListener("keydown", (e) => {
-			if (e.key !== "Enter")
-				return;
-
-			this.offset = e.target.value / 1000;
-		});
-
-		this.timingPanel.controls.bpm.input.input.addEventListener("keydown", (e) => {
-			if (e.key !== "Enter")
-				return;
-
-			this.bpm = e.target.value;
+		this.timeline.graph.addEventListener("wheel", (e) => {
+			this.seek(this.seekTarget + (e.deltaY / 100) * (this.scale / 50));
 		});
 
 		// Init
 		this.meters.style.setProperty("--rate", `${this.METER_UPDATE}ms`);
-		this.initMeterRuler();
 		this.bpm = bpm;
 		this.scale = scale;
+		this.initMeterRuler();
+		this.renderComparator(0);
 
 		await this.initSounds();
+		this.loading = false;
 	},
 
 	/**
@@ -377,6 +427,11 @@ const metronome = {
 				holding = true;
 
 				timeout = setTimeout(() => {
+					if (!holding) {
+						reset();
+						return;
+					}
+
 					interval = setInterval(() => {
 						onInput(step);
 						bounce(button);
@@ -414,9 +469,7 @@ const metronome = {
 		container.increase.addEventListener("mouseleave", () => hoverI(-1));
 
 		return {
-			container,
-
-
+			container
 		}
 	},
 
@@ -451,12 +504,12 @@ const metronome = {
 				this.sounds[key] = new Audio(value);
 
 				this.sounds[key].addEventListener("error", el = (e) => {
-					clog("ERRR", `Error loading sound: ${value}`, e);
+					this.log("ERRR", `Error loading sound: ${value}`, e);
 					reject({ code: -1, description: `Cannot load sound ${value}`, data: e });
 				});
 
 				this.sounds[key].addEventListener("canplaythrough", rl = () => {
-					clog("OKAY", `Loaded sound ${value}`);
+					this.log("OKAY", `Loaded sound ${value}`);
 					this.sounds[key].removeEventListener("canplaythrough", rl);
 					this.sounds[key].removeEventListener("error", el);
 					resolve();
@@ -486,23 +539,46 @@ const metronome = {
 	 * @param	{String|File}	audio
 	 */
 	async load(audio) {
+		if (this.loading)
+			throw { code: -1, description: `metronome.load(): another audio is already loading!` }
+
+		this.loading = true;
+		this.log("INFO", `loading`, audio);
+
+		if (this.playing)
+			await this.pause();
+
 		this.audio.context = new AudioContext();
 
-		if (typeof audio === "string") {
-			let response = await fetch(audio);
-			let clone = response.clone();
-			this.audio.buffer = await this.audio.context.decodeAudioData(await response.arrayBuffer());
-			this.audio.instance = new Audio(URL.createObjectURL(await clone.blob()));
-		} else {
-			this.audio.buffer = await this.audio.context.decodeAudioData(audio);
+		try {
+			if (typeof audio === "string") {
+				let response = await fetch(audio);
+
+				if (!response.ok)
+					throw response;
+
+				let clone = response.clone();
+				this.audio.buffer = await this.audio.context.decodeAudioData(await response.arrayBuffer());
+				this.audio.instance = new Audio(URL.createObjectURL(await clone.blob()));
+			} else {
+				let reader = new FileReader();
+				reader.readAsArrayBuffer(audio);
+				this.audio.buffer = await this.audio.context.decodeAudioData(reader);
+				this.audio.instance = new Audio(URL.createObjectURL(audio));
+			}
+		} catch(error) {
+			let e = { code: -1, description: `failed to load audio file "${audio}"`, data: error }
+			errorHandler(e);
+			this.loading = false;
+			throw e;
 		}
 
 		// Check audio not fully loaded
 		if (this.audio.instance.readyState < 4) {
-			clog("INFO", "Audio is not fully loaded, wait for it to fully load...");
+			this.log("INFO", "Audio is not fully loaded, wait for it to fully load...");
 
 			await new Promise((resolve) => {
-				clog("OKAY", "Audio loaded.");
+				this.log("OKAY", "Audio loaded.");
 				this.audio.instance.addEventListener("canplaythrough", () => resolve());
 			});
 		}
@@ -517,6 +593,7 @@ const metronome = {
 
 		this.time = 0;
 		this.renderComparator(0);
+		this.loading = false;
 	},
 
 	async audioInit() {
@@ -539,7 +616,7 @@ const metronome = {
 	
 	sampleDataPoints() {
 		let start = performance.now();
-		clog("DEBG", "sampling data points...");
+		this.log("INFO", "sampling data points...");
 
 		this.audio.points = [];
 		let channels = this.audio.buffer.numberOfChannels > 1
@@ -548,6 +625,8 @@ const metronome = {
 		for (let c of channels) {
 			this.audio.points[c] = [];
 
+			let max = 0;
+			let value;
 			let raw = this.audio.buffer.getChannelData(c);
 			let samples = Math.floor(this.SAMPLE_PER_SEC * this.audio.buffer.duration);
 			const blockSize = Math.floor(raw.length / samples);
@@ -560,14 +639,18 @@ const metronome = {
 				for (let j = 0; j < blockSize; j++)
 					sum += Math.abs(raw[blockStart + j]);
 	
-				this.audio.points[c].push(sum / blockSize);
+				value = sum / blockSize;
+				this.audio.points[c].push(value);
+
+				if (value > max)
+					max = value;
 			}
 	
-			const multiplier = Math.pow(Math.max(...this.audio.points[c]), -1);
+			const multiplier = Math.pow(max, -1);
 			this.audio.points[c] = this.audio.points[c].map(i => i * multiplier);
 		}
 
-		clog("DEBG", `sampling complete! took ${performance.now() - start}ms`);
+		this.log("OKAY", `sampling complete! took ${performance.now() - start}ms`);
 	},
 
 	/**
@@ -662,10 +745,20 @@ const metronome = {
 		if (this.audio.context.state === "suspended")
 			await this.audio.context.resume();
 
+		if (this.seekAnimator) {
+			this.seekAnimator.cancel();
+			this.seekAnimator = null;
+			this.seekTarget = this.time;
+		}
+
 		this.playing = true;
 		this.timeline.play.classList.add("pause");
 		await this.audio.instance.play();
 		this.startUpdate();
+
+		// Reset meter
+		clearTimeout(this.meterResetTimeout);
+		this.meters.classList.remove("slow");
 
 		// Decrease current swing tick to re-calculate time to
 		// next tick.
@@ -677,9 +770,11 @@ const metronome = {
 			return;
 
 		this.playing = false;
+		this.seekTarget = this.time;
 		this.timeline.play.classList.remove("pause");
-		await this.audio.instance.pause();
+		this.audio.instance.pause();
 		this.stopUpdate();
+		this.resetChannelMeter();
 		this.swing(this.timePerBeat * 2, "latch");
 	},
 
@@ -694,17 +789,21 @@ const metronome = {
 		await this.pause();
 		this.audio.instance.currentTime = 0;
 		this.time = 0;
+		this.seekTarget = 0;
 		this.renderComparator(0);
 		this.reset();
 	},
 
-	completed() {
-		clog("INFO", "Playback ended, stopped updating.");
+	async completed() {
+		this.log("INFO", "Playback ended, stopped updating.");
 		this.stopUpdate();
+		this.playing = false;
+		
+		this.resetChannelMeter();
 		this.time = this.audio.duration;
+		this.seekTarget = this.time;
 		this.swing(this.timePerBeat * 2, "latch");
 		this.timeline.play.classList.remove("pause");
-		this.playing = false;
 	},
 
 	reset() {
@@ -746,7 +845,7 @@ const metronome = {
 				let toNextTick = nextTickTime - oTime;
 				let shouldTick = Math.abs(toNextTick - this.timePerBeat) < 0.05;
 	
-				clog("DEBG", "------ tick", this.currentTick, `nextTickTime = ${nextTickTime}`, `toNextTick = ${toNextTick}`, `shouldTick = ${shouldTick}`);
+				this.log("DEBG", "------ tick", this.currentTick, `nextTickTime = ${nextTickTime}`, `toNextTick = ${toNextTick}`, `shouldTick = ${shouldTick}`);
 				this.swing(toNextTick, shouldTick ? this.currentTick : "no");
 				this.renderComparator(this.currentTick);
 			}
@@ -766,9 +865,7 @@ const metronome = {
 		this.alternate = !this.alternate;
 
 		if (this.audio.instance.paused) {
-			clog("INFO", "Playback ended, stopped updating");
-			this.stopUpdate();
-			this.time = this.audio.duration;
+			this.completed();
 			return;
 		}
 
@@ -782,7 +879,7 @@ const metronome = {
 		
 		this.timelineWidth = this.scale * ticks;
 		this.timeline.graph.inner.ticks.style.width = `${this.timelineWidth}px`;
-		clog("DEBG", `maxTick = ${ticks}`);
+		this.log("DEBG", `maxTick = ${ticks}`);
 
 		for (let tick = 0; tick <= ticksF; tick++) {
 			if (!this.tickBars[tick]) {
@@ -821,17 +918,15 @@ const metronome = {
 		let cTo = this.comparatorCurrentTo;
 		let cTick = this.comparatorCurrentTick;
 		let height = this.COMPARATOR_SIZE / this.COMPARATOR_TICKS;
-		let reversed = false;
 		
 		if (typeof cTick === "number") {
 			let d = cTick - tick;
-			reversed = d > 0;
 
-			if (d !== 0) {
+			if (typeof d === "number" && d !== 0) {
 				let oFrom = (d < 0) ? cFrom : to;
 				let oTo = (d < 0) ? from : cTo;
 	
-				clog("DEBG", `comparator oob ${oFrom} -> ${oTo}`);
+				this.log("DEBG", `comparator oob ${oFrom} -> ${oTo}`);
 	
 				// Remove out of bound
 				for (let i = oFrom; i < oTo; i++) {
@@ -848,7 +943,7 @@ const metronome = {
 			}
 		}
 
-		clog("DEBG", `comparator ${tick} ${from} -> ${to}`);
+		this.log("DEBG", `comparator ${tick} ${from} -> ${to}`);
 
 		for (let i = from; i < to; i++) {
 			if (!this.comparators[i]) {
@@ -871,7 +966,7 @@ const metronome = {
 
 			// Need update?
 			if (cr.update || force) {
-				clog("DEBG", "comparator update", cr.tick);
+				this.log("DEBG", "comparator update", cr.tick);
 
 				requestAnimationFrame(() => {
 					let tFrom = this.timePerBeat * (cr.tick - 0.5) + this.offset;
@@ -922,13 +1017,37 @@ const metronome = {
 		} else {
 			value = scaleValue(db, [this.METER_MIN, this.METER_MAX], [0, 100]);
 			this.meters[channel].bar.style.height = `${value}%`;
-			this.meters[channel].value.innerText = `${db.toFixed(2)} db`;
+			this.meters[channel].value.innerText = `${db.toFixed(1)} db`;
 		}
+
+		// If not updated for too long, reset max value.
+		let now = performance.now();
+		if (now - this.audio[`${channel}MaxTime`] > 1000)
+			this.audio[`${channel}Max`] = 0;
 
 		if (this.audio[`${channel}Max`] < value) {
 			this.audio[`${channel}Max`] = value;
+			this.audio[`${channel}MaxTime`] = performance.now();
 			this.meters[channel].max.style.bottom = `${value}%`;
 		}
+	},
+
+	resetChannelMeter() {
+		clearTimeout(this.meterResetTimeout);
+
+		this.meterResetTimeout = setTimeout(async () => {
+			this.audio.leftMax = 0;
+			this.audio.rightMax = 0;
+			this.meters.classList.add("slow");
+	
+			await nextFrameAsync();
+			this.meters.left.max.style.bottom = `0`;
+			this.meters.left.bar.style.height = `0`;
+			this.meters.left.value.innerText = `-∞ db`;
+			this.meters.right.max.style.bottom = `0`;
+			this.meters.right.bar.style.height = `0`;
+			this.meters.right.value.innerText = `-∞ db`;
+		}, 500);
 	},
 
 	/**
@@ -971,7 +1090,7 @@ const metronome = {
 		let amount = target - start;
 		this.swingLeft = !this.swingLeft;
 		
-		clog(`DEBG`, `swing 1st half start = ${start} -> ${target}`);
+		this.log(`DEBG`, `swing 1st half start = ${start} -> ${target}`);
 
 		// First half to go to edge.
 		this.swingAnimator = new Animator(duration / 2, Easing.OutCubic, (t) => {
@@ -994,7 +1113,7 @@ const metronome = {
 		target = 0;
 		amount = target - start;
 
-		clog(`DEBG`, `swing 2nd half start = ${start} -> ${target}`);
+		this.log(`DEBG`, `swing 2nd half start = ${start} -> ${target}`);
 
 		this.swingAnimator = new Animator(duration / 2, Easing.InCubic, (t) => {
 			this.swingRotate = start + (amount * t);
@@ -1007,10 +1126,10 @@ const metronome = {
 		// Play tick sound
 		if (tick % 4 === 0) {
 			this.playSound(this.sounds.tickDownbeat);
-			clog("DEBG", "sound tick downbeat", tick);
+			this.log("DEBG", "sound tick downbeat", tick);
 		} else {
 			this.playSound(this.sounds.tick);
-			clog("DEBG", "sound tick", tick);
+			this.log("DEBG", "sound tick", tick);
 		}
 
 		this.timingPanel.top.metronome.swing.classList.add("beat");
@@ -1018,8 +1137,47 @@ const metronome = {
 
 	updateOffsetWidth() {
 		let offsetWidth = this.pxPerSecond * this.offset;
-		clog("DEBG", `offsetWidth = ${offsetWidth}`);
+		this.log("DEBG", `offsetWidth = ${offsetWidth}`);
 		this.timeline.graph.inner.ticks.style.marginLeft = `${offsetWidth}px`;
+	},
+
+	/**
+	 * Seek to specified time, in style!
+	 * @param	{Number}	time
+	 */
+	async seek(time) {
+		time = Math.min(time, this.audio.duration);
+		time = Math.max(time, 0);
+
+		if (this.currentTime === time)
+			return;
+		
+		this.seekTarget = time;
+		if (!this.playing) {
+			let current = this.time;
+			let delta = time - current;
+			
+			if (this.seekAnimator)
+				this.seekAnimator.cancel();
+
+			this.seekAnimator = new Animator(1, Easing.OutQuart, (t) => {
+				this.time = current + (delta * t);
+				this.audio.instance.currentTime = this.time;
+			});
+
+			if (!await this.seekAnimator.complete())
+				return;
+			
+			this.seekAnimator = undefined;
+			
+			// Calculate current tick.
+			let tick = (this.time - this.offset) / this.timePerBeat;
+			this.currentTick = Math.floor(tick);
+			this.renderComparator(this.currentTick);
+		} else {
+			this.audio.instance.currentTime = time;
+			this.time = time;
+		}
 	},
 
 	/**
@@ -1044,7 +1202,7 @@ const metronome = {
 			bpm = 1;
 
 		bpm = round(round(bpm, 4), 3);
-		this.timingPanel.controls.bpm.input.input.value = bpm;
+		this.timingPanel.controls.bpm.input.value = bpm;
 
 		let weightPos = scaleValue(bpm, [0, 500], [6, 76]);
 		this.currentBPM = bpm;
@@ -1068,7 +1226,7 @@ const metronome = {
 	set offset(offset) {
 		offset = round(round(offset, 4), 3);
 		this.currentOffset = offset;
-		this.timingPanel.controls.offset.input.input.value = offset * 1000;
+		this.timingPanel.controls.offset.input.value = offset * 1000;
 		this.updateOffsetWidth();
 		this.renderWaveform();
 		this.renderComparator(this.comparatorCurrentTick, true);
@@ -1113,11 +1271,27 @@ const metronome = {
 
 	set scale(scale) {
 		this.tickScale = scale;
+		this.timingPanel.inputs.scale.value = scale;
 		this.pxPerSecond = this.tickScale / this.timePerBeat;
 		this.renderTicks();
+		this.renderWaveform();
+		this.updateOffsetWidth();
 	},
 
 	get scale() {
 		return this.tickScale;
+	},
+
+	/**
+	 * Set loading state
+	 * @param	{Boolean}	loading
+	 */
+	set loading(loading) {
+		this.timeline.graph.loading.style.display = loading ? null : "none";
+		this.isLoading = loading;
+	},
+
+	get loading() {
+		return this.isLoading;
 	}
 }
