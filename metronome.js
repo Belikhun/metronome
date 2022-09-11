@@ -174,8 +174,16 @@ const metronome = {
 				loading: { tag: "div", class: "spinner" }
 			}},
 
-			play: { tag: "span", class: ["button", "play"] },
-			stop: { tag: "span", class: ["button", "stop"] }
+			buttons: { tag: "span", class: "buttons", child: {
+				play: { tag: "span", class: ["button", "play"] },
+				stop: { tag: "span", class: ["button", "stop"] },
+
+				sub: { tag: "span", class: "sub", child: {
+					prevTick: { tag: "span", class: ["button", "prevTick"] },
+					nextTick: { tag: "span", class: ["button", "nextTick"] },
+					end: { tag: "span", class: ["button", "end"] }
+				}}
+			}}
 		});
 
 		this.meters = makeTree("div", "meters", {
@@ -256,6 +264,12 @@ const metronome = {
 			}},
 
 			inputs: { tag: "div", class: "inputs", child: {
+				timeAdjust: this.createAdjustmentButton({
+					label: "Thời gian",
+					steps: [0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 30, 60],
+					onInput: (value) => this.seek(this.time + value)
+				}),
+
 				time: createOscInput({
 					type: "number",
 					label: "Thời gian",
@@ -308,8 +322,11 @@ const metronome = {
 		this.loading = true;
 
 		// Events
-		this.timeline.play.addEventListener("click", () => this.toggle());
-		this.timeline.stop.addEventListener("click", () => this.stop());
+		this.timeline.buttons.play.addEventListener("click", () => this.toggle());
+		this.timeline.buttons.stop.addEventListener("click", () => this.stop());
+		this.timeline.buttons.sub.prevTick.addEventListener("click", () => this.seekLastTick());
+		this.timeline.buttons.sub.nextTick.addEventListener("click", () => this.seekNextTick());
+		this.timeline.buttons.sub.end.addEventListener("click", () => this.seek(this.audio.duration));
 
 		this.timeline.graph.addEventListener("wheel", (e) => {
 			// Scale instead when ctrl key is holding
@@ -345,6 +362,14 @@ const metronome = {
 		
 			case "KeyS":
 				this.stop();
+				break;
+
+			case "ArrowRight":
+				this.seekNextTick();
+				break;
+
+			case "ArrowLeft":
+				this.seekLastTick();
 				break;
 
 			default:
@@ -721,7 +746,7 @@ const metronome = {
 			ctx.beginPath();
 			ctx.moveTo(0, height / 2 + 1);
 	
-			for (let i = fStart; i <= to; i++) {
+			for (let i = fStart; i <= to; i += 1) {
 				data = this.audio.points[0][i] || 0;
 	
 				if (data === 0)
@@ -742,7 +767,7 @@ const metronome = {
 			ctx.beginPath();
 			ctx.moveTo(0, height / 2 - 1);
 	
-			for (let i = fStart; i <= to; i++) {
+			for (let i = fStart; i <= to; i += 1) {
 				data = this.audio.points[1][i] || 0;
 	
 				if (data === 0)
@@ -760,7 +785,7 @@ const metronome = {
 	},
 
 	async play() {
-		if (!this.audio.instance)
+		if (!this.audio.instance || this.playing)
 			return;
 
 		if (this.audio.context.state === "suspended")
@@ -773,7 +798,7 @@ const metronome = {
 		}
 
 		this.playing = true;
-		this.timeline.play.classList.add("pause");
+		this.timeline.buttons.play.classList.add("pause");
 		await this.audio.instance.play();
 		this.startUpdate();
 
@@ -787,12 +812,12 @@ const metronome = {
 	},
 
 	async pause() {
-		if (!this.audio.instance)
+		if (!this.audio.instance || !this.playing)
 			return;
 
 		this.playing = false;
 		this.seekTarget = this.time;
-		this.timeline.play.classList.remove("pause");
+		this.timeline.buttons.play.classList.remove("pause");
 		this.audio.instance.pause();
 		this.stopUpdate();
 		this.resetChannelMeter();
@@ -824,7 +849,7 @@ const metronome = {
 		this.time = this.audio.duration;
 		this.seekTarget = this.time;
 		this.swing(this.timePerBeat * 2, "latch");
-		this.timeline.play.classList.remove("pause");
+		this.timeline.buttons.play.classList.remove("pause");
 	},
 
 	reset() {
@@ -1177,11 +1202,12 @@ const metronome = {
 		if (!this.playing) {
 			let current = this.time;
 			let delta = time - current;
+			let duration = Math.pow(Math.abs(delta), 0.25);
 			
 			if (this.seekAnimator)
 				this.seekAnimator.cancel();
 
-			this.seekAnimator = new Animator(1, Easing.OutQuart, (t) => {
+			this.seekAnimator = new Animator(duration, Easing.OutQuart, (t) => {
 				this.time = current + (delta * t);
 				this.audio.instance.currentTime = this.time;
 			});
@@ -1199,6 +1225,27 @@ const metronome = {
 			this.audio.instance.currentTime = time;
 			this.time = time;
 		}
+	},
+
+	async seekNextTick() {
+		let tick = (this.seekTarget - this.offset) / this.timePerBeat;
+		tick = round(tick, 2);
+
+		this.seekTarget = Math.floor(tick + 1) * this.timePerBeat + this.offset;
+		await this.seek(this.seekTarget);
+	},
+
+	async seekLastTick() {
+		let tick = (this.seekTarget - this.offset) / this.timePerBeat;
+		tick = round(tick, 2);
+
+		if (Math.floor(tick) < tick)
+			this.seekTarget = Math.floor(tick) * this.timePerBeat;
+		else
+			this.seekTarget = Math.floor(tick - 1) * this.timePerBeat;
+
+		this.seekTarget += this.offset;
+		await this.seek(this.seekTarget);
 	},
 
 	/**
@@ -1280,7 +1327,8 @@ const metronome = {
 
 		if (!this.playing)
 			this.audio.instance.currentTime = currentTime;
-		else
+		
+		if (!this.seekAnimator || this.seekAnimator.completed)
 			this.seekTarget = currentTime;
 
 		this.timeline.graph.inner.style.transform = `translateX(-${progress * this.timelineWidth}px)`;
@@ -1318,5 +1366,13 @@ const metronome = {
 
 	get loading() {
 		return this.isLoading;
+	},
+
+	/**
+	 * Get current tick based on current time.
+	 * @return	{Number}
+	 */
+	get tick() {
+		return (this.time - this.offset) / this.timePerBeat;
 	}
 }

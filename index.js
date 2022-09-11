@@ -4,7 +4,7 @@ const main = {
 
 	audios: [
 		{ path: "audios/Let Me Go.mp3", bpm: 170, offset: 0.177 },
-		{ path: "audios/Viva Happy.mp3", bpm: 148, offset: -0.02 },
+		{ path: "audios/Viva Happy.mp3", bpm: 148, offset: -0.02, time: 54.9 },
 		{ path: "audios/Tell Me Baby feat. mow 2.mp3", bpm: 170, offset: 0.177, time: 66.84 },
 		{ path: "audios/Artificial Snow.mp3", bpm: 256, offset: 1.416 },
 		{ path: "audios/test60.mp3", bpm: 60, offset: 0.130 },
@@ -42,6 +42,8 @@ const main = {
 						<li><code>S</code>: dừng lại</li>
 						<li><code>Lăn Chuột</code> tại timeline: đổi thời gian</li>
 						<li><code>Ctrl + Lăn Chuột</code> tại timeline: phóng to/thu nhỏ</li>
+						<li><code>Mũi Tên Phải</code>: tick tiếp theo</li>
+						<li><code>Mũi Tên Trái</code>: tick trước đó</li>
 					</ul>`
 			})
 		});
@@ -85,6 +87,11 @@ const main = {
 				await metronome.load(file);
 				metronome.bpm = 60;
 				metronome.offset = 0;
+
+				if (this.active) {
+					this.active.classList.remove("active");
+					this.active = undefined;
+				}
 			} catch(e) {
 				errorHandler(e);
 				clog("ERRR", e);

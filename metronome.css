@@ -7,6 +7,10 @@
 	--background-5: #546168;
 	--background-6: #606d75;
 	--background-7: #6c7b85;
+	--background-8: #788994;
+	--background-9: #81929e;
+	--background-10: #899aa7;
+	--background-11: #93a6b4;
 
 	--blue: #66CDFE;
 	--yellow: #FFD966;
@@ -22,6 +26,7 @@
 }
 
 .MetronomeContainer > .timeline {
+	position: relative;
 	display: flex;
 	flex-direction: row;
 }
@@ -121,26 +126,62 @@
 	transform: translateY(-50%);
 }
 
-.MetronomeContainer > .timeline > .button {
+.MetronomeContainer > .timeline > .buttons {
+	position: relative;
+	display: flex;
+	flex-direction: row;
+
+	width: 240px;
+	padding-bottom: 40px;
+	box-sizing: border-box;
+}
+
+.MetronomeContainer > .timeline > .buttons > .sub {
+	position: absolute;
+	display: flex;
+	flex-direction: row;
+	bottom: 0;
+	left: 0;
+	right: 0;
+	height: 40px;
+}
+
+.MetronomeContainer > .timeline > .buttons .button {
+	flex-grow: 1;
 	flex-shrink: 0;
 	display: grid;
 	place-items: center;
 
-	width: 120px;
 	color: black;
 	background-color: white;
 	cursor: pointer;
+
+	transition:
+		filter 1s cubic-bezier(0.06, 0.81, 0, 0.98),
+		transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.MetronomeContainer > .timeline > .button.play {
+.MetronomeContainer > .timeline > .buttons .button:hover {
+	filter: brightness(1.2);
+}
+
+.MetronomeContainer > .timeline > .buttons .button:active {
+	transition:
+		filter 1s cubic-bezier(0.06, 0.81, 0, 0.98),
+		transform 0.8s cubic-bezier(0.215, 0.61, 0.355, 1);
+	
+	transform: scale(0.9);
+}
+
+.MetronomeContainer > .timeline > .buttons .button.play {
 	background-color: var(--blue);
 }
 
-.MetronomeContainer > .timeline > .button.stop {
+.MetronomeContainer > .timeline > .buttons .button.stop {
 	background-color: var(--yellow);
 }
 
-.MetronomeContainer > .timeline > .button::after {
+.MetronomeContainer > .timeline > .buttons .button::after {
 	content: "\f111";
 	position: relative;
 
@@ -149,16 +190,41 @@
 	font-weight: 600;
 }
 
-.MetronomeContainer > .timeline > .button.play::after {
+.MetronomeContainer > .timeline > .buttons .button.play::after {
 	content: "\f04b";
 }
 
-.MetronomeContainer > .timeline > .button.play.pause::after {
+.MetronomeContainer > .timeline > .buttons .button.play.pause::after {
 	content: "\f04c";
 }
 
-.MetronomeContainer > .timeline > .button.stop::after {
+.MetronomeContainer > .timeline > .buttons .button.stop::after {
 	content: "\f04d";
+}
+
+.MetronomeContainer > .timeline > .buttons > .sub > .button {
+	background-color: var(--background-5);
+}
+
+.MetronomeContainer > .timeline > .buttons > .sub > .button::after {
+	font-size: 18px;
+	color: white;
+}
+
+.MetronomeContainer > .timeline > .buttons > .sub > .button.prevTick::after {
+	content: "\f104";
+}
+
+.MetronomeContainer > .timeline > .buttons > .sub > .button.nextTick::after {
+	content: "\f105";
+}
+
+.MetronomeContainer > .timeline > .buttons > .sub > .button.end {
+	background-color: var(--osc-color-red);
+}
+
+.MetronomeContainer > .timeline > .buttons > .sub > .button.end::after {
+	content: "\f090";
 }
 
 .MetronomeContainer > .view {
@@ -335,29 +401,25 @@
 .MetronomeContainer > .view > .panels > .timing {
 	display: flex;
 	flex-direction: row;
+	flex-wrap: wrap;
+}
+
+.MetronomeContainer > .view > .panels > .timing > div {
+	margin: 10px 30px 10px 0;
 }
 
 .MetronomeContainer > .view > .panels > .timing > .top {
 	display: flex;
 	flex-direction: row;
 	align-items: center;
-	margin: 0 10px;
 }
 
 .MetronomeContainer > .view > .panels > .timing > .top > .metronome {
 	margin-right: 30px;
 }
 
-.MetronomeContainer > .view > .panels > .timing > .controls {
-	margin: 0 20px;
-}
-
 .MetronomeContainer > .view > .panels > .timing > .controls > div {
 	margin-bottom: 32px;
-}
-
-.MetronomeContainer > .view > .panels > .timing > .controls > div > .fineAdjustmentButton {
-	margin-bottom: 10px;
 }
 
 .MetronomeContainer > .view > .panels > .timing > .inputs > .osc-input {
@@ -369,6 +431,11 @@
     --focus-background: var(--background-5);
     --focus-border: var(--blue);
 }
+
+.MetronomeContainer .fineAdjustmentButton {
+	margin-bottom: 10px;
+}
+
 
 @keyframes adjustment-value-bounce {
 	0% { top: 5px }
@@ -549,6 +616,22 @@
 
 .fineAdjustmentButton > .buttons > span[data-index="3"] {
 	background-color: var(--background-7);
+}
+
+.fineAdjustmentButton > .buttons > span[data-index="4"] {
+	background-color: var(--background-8);
+}
+
+.fineAdjustmentButton > .buttons > span[data-index="5"] {
+	background-color: var(--background-9);
+}
+
+.fineAdjustmentButton > .buttons > span[data-index="6"] {
+	background-color: var(--background-10);
+}
+
+.fineAdjustmentButton > .buttons > span[data-index="7"] {
+	background-color: var(--background-11);
 }
 
 .fineAdjustmentButton > .buttons > span.hover {
