@@ -1,3 +1,18 @@
+/**
+ * /metronome.js
+ * 
+ * My own implementation of a metronome, with many features
+ * that support for accurate measuring and calculating
+ * offset and bpm for audio file.
+ * 
+ * This file is licensed under the MIT License.
+ * See LICENSE in the project root for license information.
+ * 
+ * @author		Belikhun
+ * @version		1.0
+ * @license		MIT
+ * @copyright	2022 Belikhun
+ */
 
 const metronome = {
 	/** @type {TreeDOM} */

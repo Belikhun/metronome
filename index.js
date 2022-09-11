@@ -1,3 +1,17 @@
+/**
+ * /index.js
+ * 
+ * Index file, used to setup metronome and inject
+ * custom control panel.
+ * 
+ * This file is licensed under the MIT License.
+ * See LICENSE in the project root for license information.
+ * 
+ * @author		Belikhun
+ * @version		1.0
+ * @license		MIT
+ * @copyright	2022 Belikhun
+ */
 
 const main = {
 	container: $("#app"),
