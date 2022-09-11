@@ -1400,6 +1400,7 @@ const metronome = {
 		this.renderComparator(this.comparatorCurrentTick, true);
 		this.updateOffsetWidth();
 		this.updateDurationView();
+		this.updateTimelineProgress();
 	},
 
 	/**

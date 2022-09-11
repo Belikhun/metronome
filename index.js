@@ -22,6 +22,7 @@ const main = {
 		{ path: "audios/Tell Me Baby feat. mow 2.mp3", bpm: 170, offset: 0.540, time: 66.84 },
 		{ path: "audios/Artificial Snow.mp3", bpm: 256, offset: 1.416 },
 		{ path: "audios/Eeny, Meeny....mp3", bpm: 130, offset: 0.15 },
+		{ path: "audios/paroxysm.mp3", bpm: 132, offset: 1.82 },
 		{ path: "audios/Spin Eternally.mp3", bpm: 222 },
 		{ path: "audios/test60.mp3", bpm: 60, offset: 0.130 },
 		{ path: "audios/metro_170bpm_5min.mp3", bpm: 170, offset: 0 }
