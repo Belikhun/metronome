@@ -1,6 +1,7 @@
 body {
 	--primary-font: Albula;
 	--heading-font: Albula;
+	overflow: hidden;
 }
 
 #app {

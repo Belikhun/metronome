@@ -17,6 +17,7 @@
 
 	color: white;
 	background-color: var(--background-1);
+	overflow: hidden;
 }
 
 .MetronomeContainer > .timeline {
@@ -273,7 +274,8 @@
 .MetronomeContainer > .view > .meters > .label {
 	position: absolute;
 	bottom: 20px;
-	left: 20px;
+	right: 20px;
+	text-align: right;
 }
 
 .MetronomeContainer > .view > .panels {
@@ -281,6 +283,9 @@
 	flex-direction: column;
 	flex-grow: 1;
 	padding: 10px;
+
+	overflow-x: hidden;
+	overflow-y: auto;
 }
 
 .MetronomeContainer > .view > .panels > div {
@@ -289,6 +294,51 @@
 	background-color: var(--background-3);
 	border-radius: 16px;
 }
+
+.MetronomeContainer > .view > .panels > .timing {
+	display: flex;
+	flex-direction: row;
+}
+
+.MetronomeContainer > .view > .panels > .timing > .top {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	margin: 0 10px;
+}
+
+.MetronomeContainer > .view > .panels > .timing > .top > .metronome {
+	margin-right: 30px;
+}
+
+.MetronomeContainer > .view > .panels > .timing > .controls {
+	margin-left: 20px;
+}
+
+.MetronomeContainer > .view > .panels > .timing > .controls > div {
+	margin-bottom: 32px;
+}
+
+.MetronomeContainer > .view > .panels > .timing > .controls > div > .osc-input {
+	margin-top: 16px;
+    --background: var(--background-4);
+    --focus-background: var(--background-5);
+    --focus-border: var(--blue);
+}
+
+@keyframes adjustment-value-bounce {
+	0% { top: 5px }
+	50% { top: 0 }
+	100% { top: 5px }
+}
+
+@keyframes swing-beat {
+	0% { background-color: #b9e8ff; }
+	100% { background-color: #47B4EB; }
+}
+
+
+/** ================ COMPONENTS ================= */
 
 .MetronomeContainer .metronome {
 	position: relative;
@@ -422,7 +472,81 @@
 	background-color: var(--yellow);
 }
 
-@keyframes swing-beat {
-	0% { background-color: #b9e8ff; }
-	100% { background-color: #47B4EB; }
+
+.fineAdjustmentButton {
+	position: relative;
+	display: inline-flex;
+	flex-direction: row;
+
+	height: 60px;
+	border-radius: 8px;
+	overflow: hidden;
+}
+
+.fineAdjustmentButton > .buttons {
+	display: inline-flex;
+	height: 100%;
+}
+
+.fineAdjustmentButton > .buttons > span {
+	width: 26px;
+	height: 100%;
+	background-color: var(--background-4);
+	cursor: pointer;
+}
+
+.fineAdjustmentButton > .buttons > span[data-index="1"] {
+	background-color: var(--background-5);
+}
+
+.fineAdjustmentButton > .buttons > span[data-index="2"] {
+	background-color: var(--background-6);
+}
+
+.fineAdjustmentButton > .buttons > span[data-index="3"] {
+	background-color: var(--background-7);
+}
+
+.fineAdjustmentButton > .buttons > span.hover {
+	filter: brightness(1.3) saturate(2);
+}
+
+.fineAdjustmentButton > .label {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+	text-align: center;
+	pointer-events: none;
+}
+
+.fineAdjustmentButton > .value {
+	position: absolute;
+	display: none;
+
+	top: 5px;
+	font-size: 12px;
+	left: 50%;
+	transform: translateX(calc(-50% - 12px));
+
+	font-size: 11px;
+	text-align: right;
+	pointer-events: none;
+}
+
+.fineAdjustmentButton > .value.show {
+	display: block;
+}
+
+.fineAdjustmentButton > .value.bounce {
+	animation-name: adjustment-value-bounce;
+	animation-duration: 0.3s;
+	animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+	animation-fill-mode: forwards;
+	animation-iteration-count: 1;
+}
+
+.fineAdjustmentButton > .value[data-pos="right"] {
+	transform: translateX(calc(-50% + 12px));
+	text-align: left;
 }

@@ -175,7 +175,7 @@ const metronome = {
 		});
 
 		this.wavesPanel = makeTree("div", "waves", {
-
+			
 		});
 
 		this.timingPanel = makeTree("div", "timing", {
@@ -195,6 +195,34 @@ const metronome = {
 				}},
 
 				comparator: { tag: "div", class: "comparator" }
+			}},
+
+			controls: { tag: "div", class: "controls", child: {
+				offset: { tag: "div", class: "offset", child: {
+					adjust: this.createAdjustmentButton({
+						label: "Offset",
+						steps: [1, 2, 5, 10],
+						onInput: (value) => this.offset = this.currentOffset + (value / 1000)
+					}),
+
+					input: { tag: "div", class: "osc-input", child: {
+						label: { tag: "label", text: "Offset" },
+						input: { tag: "input", type: "number", value: 0 }
+					}}
+				}},
+	
+				bpm: { tag: "div", class: "bpm", child: {
+					adjust: this.createAdjustmentButton({
+						label: "BPM",
+						steps: [0.1, 0.2, 0.5, 1],
+						onInput: (value) => this.bpm = this.currentBPM + value
+					}),
+
+					input: { tag: "div", class: "osc-input", child: {
+						label: { tag: "label", text: "BPM" },
+						input: { tag: "input", type: "number", value: 0 }
+					}}
+				}}
 			}}
 		});
 
@@ -209,11 +237,28 @@ const metronome = {
 
 		this.timingPanel.top.comparator.style.width = `${this.COMPARATOR_SIZE}px`;
 		this.timingPanel.top.comparator.style.height = `${this.COMPARATOR_SIZE}px`;
+		container.tabIndex = -1;
 		container.classList.add("MetronomeContainer");
 		container.append(this.timeline, this.view);
+		container.addEventListener("keydown", e => this.keyPress(e));
 
+		// Events
 		this.timeline.play.addEventListener("click", () => this.toggle());
 		this.timeline.stop.addEventListener("click", () => this.stop());
+
+		this.timingPanel.controls.offset.input.input.addEventListener("keydown", (e) => {
+			if (e.key !== "Enter")
+				return;
+
+			this.offset = e.target.value / 1000;
+		});
+
+		this.timingPanel.controls.bpm.input.input.addEventListener("keydown", (e) => {
+			if (e.key !== "Enter")
+				return;
+
+			this.bpm = e.target.value;
+		});
 
 		// Init
 		this.meters.style.setProperty("--rate", `${this.METER_UPDATE}ms`);
@@ -222,6 +267,157 @@ const metronome = {
 		this.scale = scale;
 
 		await this.initSounds();
+	},
+
+	/**
+	 * Handle key event
+	 * @param	{KeyboardEvent}	event 
+	 */
+	keyPress(event) {
+		switch (event.code) {
+			case "Space":
+				this.toggle();
+				break;
+		
+			case "KeyS":
+				this.stop();
+				break;
+
+			default:
+				break;
+		}
+	},
+
+	/**
+	 * Create fine value adjustment button.
+	 * @param		{Object}						options
+	 * @param		{String}						options.label
+	 * @param		{Number[]}						options.steps
+	 * @param		{Number}						options.holdInterval
+	 * @param		{(value: Number) => any}		options.onInput
+	 * @returns 
+	 */
+	createAdjustmentButton({
+		label = "TEST",
+		steps = [1, 2, 5, 10],
+		holdInterval = 100,
+		onInput = () => {}
+	}) {
+		let container = makeTree("div", "fineAdjustmentButton", {
+			decrease: { tag: "span", class: "buttons" },
+			increase: { tag: "span", class: "buttons" },
+			label: { tag: "span", class: "label", text: label },
+			value: { tag: "span", class: "value", text: 0 }
+		});
+
+		let decreases = []
+		let increases = []
+
+		const hoverD = (index, step) => {
+			// Reset
+			for (let i of decreases)
+				i.classList.remove("hover");
+
+			if (index > -1) {
+				container.value.classList.add("show");
+				container.value.innerText = step;
+				container.value.dataset.pos = "left";
+
+				for (let i = decreases.length - 1; i >= index; i--)
+					decreases[i].classList.add("hover");
+			} else {
+				container.value.classList.remove("show");
+			}
+		}
+
+		const hoverI = (index, step) => {
+			// Reset
+			for (let i of increases)
+				i.classList.remove("hover");
+
+			if (index > -1) {
+				container.value.classList.add("show");
+				container.value.innerText = `+${step}`;
+				container.value.dataset.pos = "right";
+
+				for (let i = 0; i <= index; i++)
+					increases[i].classList.add("hover");
+			} else {
+				container.value.classList.remove("show");
+			}
+		}
+
+		const bounce = async () => {
+			container.value.classList.remove("bounce");
+			await nextFrameAsync();
+			container.value.classList.add("bounce");
+		}
+
+		/**
+		 * Init click events
+		 * @param {HTMLElement}	button
+		 * @param {Number}		step
+		 */
+		const initClick = (button, step) => {
+			let holding = false;
+			let timeout = undefined;
+			let interval = undefined;
+
+			const reset = () => {
+				holding = false;
+				clearTimeout(timeout);
+				clearInterval(interval);
+				timeout = undefined;
+				interval = undefined;
+			}
+
+			button.addEventListener("mousedown", () => {
+				onInput(step);
+				bounce(button);
+				holding = true;
+
+				timeout = setTimeout(() => {
+					interval = setInterval(() => {
+						onInput(step);
+						bounce(button);
+					}, holdInterval);
+				}, 500);
+			});
+
+			button.addEventListener("mouseup", () => reset());
+		}
+
+		// Decrease buttons
+		for (let [i, step] of steps.reverse().entries()) {
+			step = -step;
+			let button = document.createElement("span");
+			button.dataset.index = i;
+			button.dataset.value = step;
+			container.decrease.appendChild(button);
+			let index = decreases.push(button) - 1;
+			button.addEventListener("mouseenter", () => hoverD(index, step));
+			initClick(button, step);
+		}
+
+		// Increase buttons
+		for (let [i, step] of steps.reverse().entries()) {
+			let button = document.createElement("span");
+			button.dataset.index = steps.length - i - 1;
+			button.dataset.value = step;
+			container.increase.appendChild(button);
+			let index = increases.push(button) - 1;
+			button.addEventListener("mouseenter", () => hoverI(index, step));
+			initClick(button, step);
+		}
+
+		container.decrease.addEventListener("mouseleave", () => hoverD(-1));
+		container.increase.addEventListener("mouseleave", () => hoverI(-1));
+
+		return {
+			container,
+
+
+		}
 	},
 
 	initMeterRuler() {
@@ -508,6 +704,7 @@ const metronome = {
 		this.time = this.audio.duration;
 		this.swing(this.timePerBeat * 2, "latch");
 		this.timeline.play.classList.remove("pause");
+		this.playing = false;
 	},
 
 	reset() {
@@ -616,7 +813,7 @@ const metronome = {
 		});
 	},
 
-	renderComparator(tick) {
+	renderComparator(tick, force = false) {
 		let c = this.timingPanel.top.comparator;
 		let from = Math.ceil(tick - (this.COMPARATOR_TICKS / 2));
 		let to = Math.floor(tick + (this.COMPARATOR_TICKS / 2));
@@ -673,7 +870,7 @@ const metronome = {
 			let cr = this.comparators[i];
 
 			// Need update?
-			if (cr.update) {
+			if (cr.update || force) {
 				clog("DEBG", "comparator update", cr.tick);
 
 				requestAnimationFrame(() => {
@@ -846,6 +1043,9 @@ const metronome = {
 		if (bpm <= 0)
 			bpm = 1;
 
+		bpm = round(round(bpm, 4), 3);
+		this.timingPanel.controls.bpm.input.input.value = bpm;
+
 		let weightPos = scaleValue(bpm, [0, 500], [6, 76]);
 		this.currentBPM = bpm;
 		this.timingPanel.top.metronome.swing.weight.style.top = `${weightPos}%`;
@@ -857,6 +1057,7 @@ const metronome = {
 		this.reset();
 		this.renderTicks();
 		this.renderWaveform();
+		this.renderComparator(this.comparatorCurrentTick, true);
 		this.updateOffsetWidth();
 	},
 
@@ -865,9 +1066,12 @@ const metronome = {
 	 * @param	{Number}	offset
 	 */
 	set offset(offset) {
+		offset = round(round(offset, 4), 3);
 		this.currentOffset = offset;
+		this.timingPanel.controls.offset.input.input.value = offset * 1000;
 		this.updateOffsetWidth();
 		this.renderWaveform();
+		this.renderComparator(this.comparatorCurrentTick, true);
 		this.renderTicks();
 	},
 
