@@ -377,6 +377,8 @@ const metronome = {
 		ctx.clearRect(0, 0, width, height);
 
 		// Left channel on top
+		ctx.fillStyle = "blue";
+
 		ctx.beginPath();
 		ctx.moveTo(0, height / 2);
 
@@ -393,7 +395,6 @@ const metronome = {
 		// End left
 		ctx.lineTo(width, height / 2);
 		ctx.closePath();
-		ctx.fillStyle = "blue";
 		ctx.fill();
 
 		// Right channel on bottom
@@ -413,7 +414,6 @@ const metronome = {
 		// End left
 		ctx.lineTo(width, height / 2);
 		ctx.closePath();
-		ctx.fillStyle = "blue";
 		ctx.fill();
 	},
 
@@ -533,13 +533,14 @@ const metronome = {
 	},
 
 	renderTicks() {
-		let ticks = Math.floor(this.audio.duration / this.timePerBeat);
+		let ticks = (this.audio.duration) / this.timePerBeat;
+		let ticksF = Math.floor(ticks);
 		
-		this.timelineWidth = this.tickScale * ticks;
+		this.timelineWidth = this.scale * ticks;
 		this.timeline.graph.inner.ticks.style.width = `${this.timelineWidth}px`;
 		clog("DEBG", `maxTick = ${ticks}`);
 
-		for (let tick = 0; tick < ticks; tick++) {
+		for (let tick = 0; tick <= ticksF; tick++) {
 			if (!this.tickBars[tick]) {
 				this.tickBars[tick] = document.createElement("div");
 
@@ -549,7 +550,7 @@ const metronome = {
 				this.timeline.graph.inner.ticks.appendChild(this.tickBars[tick]);
 			}
 
-			this.tickBars[tick].style.left = `${this.tickScale * tick}px`;
+			this.tickBars[tick].style.left = `${this.scale * tick}px`;
 		}
 
 		// Remove unused ticks
@@ -562,13 +563,13 @@ const metronome = {
 	},
 
 	renderWaveform() {
-		let duration = (this.timeline.graph.preview.clientWidth / (this.tickScale / 2)) * this.timePerBeat;
+		let duration = (this.timeline.graph.preview.clientWidth / (this.scale / 2)) * this.timePerBeat;
 		this.drawWaveform(this.timeline.graph.preview, this.time, duration, 0.5);
 	},
 
 	/**
 	 * Update meter for specified channel
-	 * @param	{"left" | "right"}	channel 
+	 * @param	{"left" | "right"}	channel
 	 */
 	updateChannelMeter(channel) {
 		let analyzer = this.audio[channel];
@@ -584,9 +585,15 @@ const metronome = {
 
 		let value = Math.sqrt(sum / data.length);
 		let db = 10 * Math.log(value) * Math.LOG10E;
-		value = scaleValue(db, [this.METER_MIN, this.METER_MAX], [0, 100]);
-		this.meters[channel].bar.style.height = `${value}%`;
-		this.meters[channel].value.innerText = `${db.toFixed(2)} db`;
+		
+		if (db < this.METER_MIN || db == -Infinity) {
+			this.meters[channel].bar.style.height = `0`;
+			this.meters[channel].value.innerText = `-∞ db`;
+		} else {
+			value = scaleValue(db, [this.METER_MIN, this.METER_MAX], [0, 100]);
+			this.meters[channel].bar.style.height = `${value}%`;
+			this.meters[channel].value.innerText = `${db.toFixed(2)} db`;
+		}
 
 		if (this.audio[`${channel}Max`] < value) {
 			this.audio[`${channel}Max`] = value;
@@ -667,13 +674,14 @@ const metronome = {
 	},
 
 	tickSound(tick) {
-		clog("DEBG", "sound tick", tick);
-
 		// Play tick sound
-		if (tick % 4 === 0)
+		if (tick % 4 === 0) {
 			this.playSound(this.sounds.tickDownbeat);
-		else
+			clog("DEBG", "sound tick downbeat", tick);
+		} else {
 			this.playSound(this.sounds.tick);
+			clog("DEBG", "sound tick", tick);
+		}
 
 		this.timingPanel.top.metronome.swing.classList.add("beat");
 	},
@@ -711,7 +719,7 @@ const metronome = {
 		this.timingPanel.top.metronome.value.innerText = bpm;
 		this.timeline.timer.bpm.innerText = `${bpm} BPM`;
 		this.timePerBeat = 60 / bpm;
-		this.pxPerSecond = this.tickScale / this.timePerBeat;
+		this.pxPerSecond = this.scale / this.timePerBeat;
 
 		this.reset();
 		this.renderTicks();
@@ -742,7 +750,7 @@ const metronome = {
 		let pt = parseTime(currentTime, { msDigit: 3 });
 
 		// Weird stuff... But it work
-		let progress = (currentTime / (this.audio.duration - this.offset + this.timePerBeat));
+		let progress = currentTime / this.audio.duration;
 
 		// I wish this font is fixed-width so I don't have
 		// to do this ugly hack...
