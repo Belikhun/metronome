@@ -364,6 +364,52 @@
 	text-align: center;
 }
 
+.MetronomeContainer .comparator {
+	position: relative;
+	display: inline-block;
+	flex-direction: column;
+
+	border-radius: 16px;
+	overflow: hidden;
+}
+
+.MetronomeContainer .comparator::after {
+	content: "";
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	left: calc(50% - 1px);
+	width: 2px;
+	background-color: white;
+}
+
+.MetronomeContainer .comparator > .row {
+	position: relative;
+}
+
+.MetronomeContainer .comparator > .row[data-type="current"] {
+	background-color: var(--background-5);
+}
+
+.MetronomeContainer .comparator > .row > canvas {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+}
+
+.MetronomeContainer .comparator > .row > span {
+	position: absolute;
+	left: 16px;
+	top: 50%;
+	transform: translateY(-50%);
+	color: white;
+}
+
+.MetronomeContainer .comparator > .row[data-type="oob"] > span {
+	color: rgba(182, 182, 182, 0.6);
+}
 
 @keyframes swing-beat {
 	0% { background-color: #b9e8ff; }

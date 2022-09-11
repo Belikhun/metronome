@@ -15,13 +15,13 @@ const metronome = {
 	/** @type {TreeDOM} */
 	timingPanel: undefined,
 
-	SAMPLE_PER_SEC: 40,
+	SAMPLE_PER_SEC: 80,
 
 	METER_MIN: -69,
 	METER_MAX: 5,
 	METER_STEP: 5,
 	METER_LINE: 10,
-	METER_UPDATE: 60,
+	METER_UPDATE: 20,
 	meterLastUpdate: 0,
 
 	/** Pixels per tick */
@@ -48,6 +48,22 @@ const metronome = {
 
 	/** @type {HTMLElement[]} */
 	tickBars: [],
+
+	/**
+	 * @typedef {{
+	 * 	tick: Number
+	 * 	node: HTMLElement
+	 * 	canvas: HTMLCanvasElement
+	 * 	update: Boolean
+	 * }} ComparatorNode
+	 * @type {ComparatorNode[]} */
+	comparators: [],
+	comparatorCurrentFrom: undefined,
+	comparatorCurrentTo: undefined,
+	comparatorCurrentTick: undefined,
+
+	COMPARATOR_TICKS: 8,
+	COMPARATOR_SIZE: 300,
 
 	audio: {
 		/** @type {HTMLAudioElement} */
@@ -176,7 +192,9 @@ const metronome = {
 					lock: { tag: "img", class: "lock", src: "parts/lockingWedge.svg" },
 					cover: { tag: "img", class: "cover", src: "parts/cover.svg" },
 					value: { tag: "span", class: "value", text: "000" }
-				}}
+				}},
+
+				comparator: { tag: "div", class: "comparator" }
 			}}
 		});
 
@@ -189,6 +207,8 @@ const metronome = {
 			}}
 		});
 
+		this.timingPanel.top.comparator.style.width = `${this.COMPARATOR_SIZE}px`;
+		this.timingPanel.top.comparator.style.height = `${this.COMPARATOR_SIZE}px`;
 		container.classList.add("MetronomeContainer");
 		container.append(this.timeline, this.view);
 
@@ -298,7 +318,9 @@ const metronome = {
 
 		await this.audioInit();
 		this.reset();
+
 		this.time = 0;
+		this.renderComparator(0);
 	},
 
 	async audioInit() {
@@ -324,16 +346,19 @@ const metronome = {
 		clog("DEBG", "sampling data points...");
 
 		this.audio.points = [];
+		let channels = this.audio.buffer.numberOfChannels > 1
+			? [0, 1] : [0];
 
-		for (let c of [0, 1]) {
+		for (let c of channels) {
 			this.audio.points[c] = [];
 
 			let raw = this.audio.buffer.getChannelData(c);
-			let samples = Math.floor(this.SAMPLE_PER_SEC * this.audio.duration);
+			let samples = Math.floor(this.SAMPLE_PER_SEC * this.audio.buffer.duration);
 			const blockSize = Math.floor(raw.length / samples);
 			
 			for (let i = 0; i < samples; i++) {
-				let blockStart = blockSize * i;
+				let blockStart = Math.floor((blockSize * i) - (blockSize / 2));
+				blockStart = Math.max(blockStart, 0);
 				let sum = 0;
 	
 				for (let j = 0; j < blockSize; j++)
@@ -354,14 +379,27 @@ const metronome = {
 	 * @param	{HTMLCanvasElement}			canvas
 	 * @param	{Number}					from
 	 * @param	{Number}					length
-	 * @param	{Number}					shift	Shift factor
+	 * @param	{Object}					options
+	 * @param	{Number}					options.shift	Shift factor
+	 * @param	{Number}					options.color	Wave color
+	 * @param	{Number}					options.width	Canvas width
+	 * @param	{Number}					options.height	Canvas height
 	 */
-	drawWaveform(canvas, from, length, shift = 0) {
-		if (!this.audio.points[0] || !this.audio.points[1])
-			return;
-
-		let width = canvas.width = canvas.clientWidth;
-		let height = canvas.height = canvas.clientHeight;
+	drawWaveform(canvas, from, length, {
+		width = undefined,
+		height = undefined,
+		shift = 0,
+		color = "#76d1ff"
+	} = {}) {
+		if (typeof width === "number")
+			canvas.width = width;
+		else
+			width = canvas.width = canvas.clientWidth;
+		
+		if (typeof height === "number")
+			canvas.height = height;
+		else
+			height = canvas.height = canvas.clientHeight;
 
 		from -= (length / 2) * shift;
 		length = length * (1 - shift);
@@ -370,51 +408,55 @@ const metronome = {
 		let start = from * this.SAMPLE_PER_SEC;
 		let count = length * this.SAMPLE_PER_SEC;
 		let fStart = Math.floor(start);
-		let fCount = Math.floor(count);
+		let fCount = Math.ceil(count);
 		let to = fStart + fCount;
 		let data, x;
 
 		ctx.clearRect(0, 0, width, height);
-
-		// Left channel on top
-		ctx.fillStyle = "blue";
-
-		ctx.beginPath();
-		ctx.moveTo(0, height / 2);
-
-		for (let i = fStart; i < to; i++) {
-			data = this.audio.points[0][i] || 0;
-
-			if (data === 0)
-				continue;
-
-			x = (width / count) * (i - start);
-			ctx.lineTo(x, (height / 2) * (1 - data));
+		
+		ctx.fillStyle = color;
+		
+		if (this.audio.points[0]) {
+			// Left channel on top
+			ctx.beginPath();
+			ctx.moveTo(0, height / 2 + 1);
+	
+			for (let i = fStart; i <= to; i++) {
+				data = this.audio.points[0][i] || 0;
+	
+				if (data === 0)
+					continue;
+	
+				x = (width / count) * (i - start);
+				ctx.lineTo(x, (height / 2) * (1 - data));
+			}
+	
+			// End left
+			ctx.lineTo(width, height / 2 + 1);
+			ctx.closePath();
+			ctx.fill();
 		}
 
-		// End left
-		ctx.lineTo(width, height / 2);
-		ctx.closePath();
-		ctx.fill();
-
-		// Right channel on bottom
-		ctx.beginPath();
-		ctx.moveTo(0, height / 2);
-
-		for (let i = fStart; i < to; i++) {
-			data = this.audio.points[1][i] || 0;
-
-			if (data === 0)
-				continue;
-
-			x = (width / count) * (i - start);
-			ctx.lineTo(x, height - (height / 2) * (1 - data));
+		if (this.audio.points[1]) {
+			// Right channel on bottom
+			ctx.beginPath();
+			ctx.moveTo(0, height / 2 - 1);
+	
+			for (let i = fStart; i <= to; i++) {
+				data = this.audio.points[1][i] || 0;
+	
+				if (data === 0)
+					continue;
+	
+				x = (width / count) * (i - start);
+				ctx.lineTo(x, height - (height / 2) * (1 - data));
+			}
+	
+			// End right
+			ctx.lineTo(width, height / 2 - 1);
+			ctx.closePath();
+			ctx.fill();
 		}
-
-		// End left
-		ctx.lineTo(width, height / 2);
-		ctx.closePath();
-		ctx.fill();
 	},
 
 	async play() {
@@ -456,6 +498,7 @@ const metronome = {
 		await this.pause();
 		this.audio.instance.currentTime = 0;
 		this.time = 0;
+		this.renderComparator(0);
 		this.reset();
 	},
 
@@ -464,6 +507,7 @@ const metronome = {
 		this.stopUpdate();
 		this.time = this.audio.duration;
 		this.swing(this.timePerBeat * 2, "latch");
+		this.timeline.play.classList.remove("pause");
 	},
 
 	reset() {
@@ -491,21 +535,24 @@ const metronome = {
 
 		let now = performance.now();
 		let oTime = this.time - this.offset;
-		let tick = (oTime / this.timePerBeat);
+		let tick = oTime / this.timePerBeat;
 
-		// Sudden timing change to main tick,
-		// update current tick.
-		if (Math.abs(tick - this.currentTick) >= 1.2)
-			this.currentTick = Math.floor(tick) - 1;
-
-		if (tick > (this.currentTick + 1)) {
-			this.currentTick = Math.floor(tick);
-			let nextTickTime = (this.currentTick + 1) * this.timePerBeat;
-			let toNextTick = nextTickTime - oTime;
-			let shouldTick = Math.abs(toNextTick - this.timePerBeat) < 0.05;
-
-			clog("DEBG", "------ tick", this.currentTick, `nextTickTime = ${nextTickTime}`, `toNextTick = ${toNextTick}`, `shouldTick = ${shouldTick}`);
-			this.swing(toNextTick, shouldTick ? this.currentTick : "no");
+		if (oTime > -this.timePerBeat) {
+			// Sudden timing change to main tick,
+			// update current tick.
+			if (Math.abs(tick - this.currentTick) >= 1.2)
+				this.currentTick = Math.floor(tick) - 1;
+	
+			if (tick > (this.currentTick + 1)) {
+				this.currentTick = Math.floor(tick);
+				let nextTickTime = (this.currentTick + 1) * this.timePerBeat;
+				let toNextTick = nextTickTime - oTime;
+				let shouldTick = Math.abs(toNextTick - this.timePerBeat) < 0.05;
+	
+				clog("DEBG", "------ tick", this.currentTick, `nextTickTime = ${nextTickTime}`, `toNextTick = ${toNextTick}`, `shouldTick = ${shouldTick}`);
+				this.swing(toNextTick, shouldTick ? this.currentTick : "no");
+				this.renderComparator(this.currentTick);
+			}
 		}
 
 		// Update left right data
@@ -533,7 +580,7 @@ const metronome = {
 	},
 
 	renderTicks() {
-		let ticks = (this.audio.duration) / this.timePerBeat;
+		let ticks = this.audio.duration / this.timePerBeat;
 		let ticksF = Math.floor(ticks);
 		
 		this.timelineWidth = this.scale * ticks;
@@ -564,7 +611,87 @@ const metronome = {
 
 	renderWaveform() {
 		let duration = (this.timeline.graph.preview.clientWidth / (this.scale / 2)) * this.timePerBeat;
-		this.drawWaveform(this.timeline.graph.preview, this.time, duration, 0.5);
+		this.drawWaveform(this.timeline.graph.preview, this.time, duration, {
+			shift: 0.5
+		});
+	},
+
+	renderComparator(tick) {
+		let c = this.timingPanel.top.comparator;
+		let from = Math.ceil(tick - (this.COMPARATOR_TICKS / 2));
+		let to = Math.floor(tick + (this.COMPARATOR_TICKS / 2));
+		let cFrom = this.comparatorCurrentFrom;
+		let cTo = this.comparatorCurrentTo;
+		let cTick = this.comparatorCurrentTick;
+		let height = this.COMPARATOR_SIZE / this.COMPARATOR_TICKS;
+		let reversed = false;
+		
+		if (typeof cTick === "number") {
+			let d = cTick - tick;
+			reversed = d > 0;
+
+			if (d !== 0) {
+				let oFrom = (d < 0) ? cFrom : to;
+				let oTo = (d < 0) ? from : cTo;
+	
+				clog("DEBG", `comparator oob ${oFrom} -> ${oTo}`);
+	
+				// Remove out of bound
+				for (let i = oFrom; i < oTo; i++) {
+					if (c.contains(this.comparators[i].node))
+						c.removeChild(this.comparators[i].node);
+					
+					this.comparators[i].update = true;
+				}
+
+				this.comparators[cTick].node.dataset.type = "none";
+			}
+		}
+
+		clog("DEBG", `comparator ${tick} ${from} -> ${to}`);
+
+		for (let i = from; i < to; i++) {
+			if (!this.comparators[i]) {
+				let node = document.createElement("div");
+				node.classList.add("row");
+				node.style.height = `${height}px`;
+
+				let label = document.createElement("span");
+				label.innerText = i;
+
+				let canvas = document.createElement("canvas");
+				node.append(canvas, label);
+				this.comparators[i] = { tick: i, node, canvas, update: true }
+			}
+
+			let cr = this.comparators[i];
+
+			// Need update?
+			if (cr.update) {
+				clog("DEBG", "comparator update", cr.tick);
+
+				requestAnimationFrame(() => {
+					let tFrom = this.timePerBeat * (cr.tick - 0.5) + this.offset;
+					this.drawWaveform(cr.canvas, tFrom, this.timePerBeat, {
+						width: this.COMPARATOR_SIZE,
+						height
+					});
+				});
+
+				cr.update = false;
+			}
+			
+			// Update state
+			cr.node.dataset.type = (cr.tick < 0) ? "oob"
+				: ((cr.tick < tick) ? "last"
+				: ((cr.tick > tick) ? "next" : "current"));
+
+			c.appendChild(cr.node);
+		}
+
+		this.comparatorCurrentFrom = from;
+		this.comparatorCurrentTo = to;
+		this.comparatorCurrentTick = tick;
 	},
 
 	/**
