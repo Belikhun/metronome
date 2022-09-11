@@ -5,7 +5,7 @@ const main = {
 	audios: [
 		{ path: "audios/Let Me Go.mp3", bpm: 170, offset: 0.177 },
 		{ path: "audios/Viva Happy.mp3", bpm: 148, offset: -0.02, time: 54.9 },
-		{ path: "audios/Tell Me Baby feat. mow 2.mp3", bpm: 170, offset: 0.177, time: 66.84 },
+		{ path: "audios/Tell Me Baby feat. mow 2.mp3", bpm: 170, offset: 0.540, time: 66.84 },
 		{ path: "audios/Artificial Snow.mp3", bpm: 256, offset: 1.416 },
 		{ path: "audios/test60.mp3", bpm: 60, offset: 0.130 },
 		{ path: "audios/metro_170bpm_5min.mp3", bpm: 170, offset: 0 }

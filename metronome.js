@@ -34,6 +34,12 @@ const metronome = {
 	currentTime: 0,
 	seekTarget: 0,
 
+	/** @type {HTMLElement} */
+	offsetLabel: undefined,
+
+	/** @type {HTMLElement} */
+	bpmLabel: undefined,
+
 	currentTick: -1,
 	timePerBeat: 1,
 	timelineWidth: 0,
@@ -54,6 +60,9 @@ const metronome = {
 
 	/** @type {HTMLElement[]} */
 	tickBars: [],
+
+	/** @type {HTMLElement[]} */
+	labels: [],
 
 	/**
 	 * @typedef {{
@@ -167,11 +176,18 @@ const metronome = {
 			graph: { tag: "span", class: "graph", child: {
 				preview: { tag: "canvas", class: "preview" },
 				inner: { tag: "div", class: "inner", child: {
-					ticks: { tag: "div", class: "ticks" },
+					label: { tag: "div", class: "labels" },
+					ticks: { tag: "div", class: "ticks" }
 				}},
 
 				cursor: { tag: "img", class: "cursor", src: "parts/timeCursor.svg" },
-				loading: { tag: "div", class: "spinner" }
+				loading: { tag: "div", class: "spinner" },
+
+				progress: { tag: "div", class: "progress", child: {
+					canvas: { tag: "canvas" },
+					view: { tag: "div", class: "view" },
+					cursor: { tag: "img", class: "cursor", src: "parts/timeCursorSmall.svg" }
+				}}
 			}},
 
 			buttons: { tag: "span", class: "buttons", child: {
@@ -337,6 +353,12 @@ const metronome = {
 			}
 
 			this.seek(this.seekTarget + (e.deltaY / 100) * (this.scale / 100));
+		});
+
+		this.timeline.graph.progress.addEventListener("click", (e) => {
+			let rect = this.timeline.graph.progress.getBoundingClientRect();
+			let posX = e.clientX - rect.x;
+			this.seek(this.audio.duration * (posX / this.graphWidth));
 		});
 
 		// Init
@@ -631,11 +653,15 @@ const metronome = {
 
 		this.audio.duration = this.audio.instance.duration;
 
+		this.clearLabels();
 		this.sampleDataPoints();
 		this.renderTicks();
 
 		await this.audioInit();
 		this.reset();
+
+		// Render progress's canvas
+		this.drawWaveform(this.timeline.graph.progress.canvas, 0, this.audio.duration);
 
 		this.time = 0;
 		this.renderComparator(0);
@@ -784,6 +810,43 @@ const metronome = {
 		}
 	},
 
+	/**
+	 * Draw a badge on timeline
+	 * @param {String}							badge 
+	 * @param {Number}							tick 
+	 * @param {Object}							options
+	 * @param {String}							options.color
+	 * @param {"left" | "right" | "center"}		options.align
+	 */
+	drawLabel(label, tick, {
+		color = "gray",
+		align = "center"
+	} = {}) {
+		let node = document.createElement("tag");
+		node.innerText = label;
+		node.dataset.color = color;
+		node.dataset.align = align;
+		node.dataset.tick = tick;
+		node.style.left = `${this.scale * tick}px`;
+		this.timeline.graph.inner.label.appendChild(node);
+		this.labels.push(node);
+		return node;
+	},
+
+	updateLabels() {
+		for (let label of this.labels) {
+			let tick = parseFloat(label.dataset.tick);
+			label.style.left = `${this.scale * tick}px`;
+		}
+	},
+
+	clearLabels() {
+		emptyNode(this.timeline.graph.inner.label);
+		this.offsetLabel = undefined;
+		this.bpmLabel = undefined;
+		this.labels = []
+	},
+
 	async play() {
 		if (!this.audio.instance || this.playing)
 			return;
@@ -832,6 +895,9 @@ const metronome = {
 	},
 
 	async stop() {
+		if (!this.audio.instance)
+			return;
+
 		await this.pause();
 		this.audio.instance.currentTime = 0;
 		this.time = 0;
@@ -924,15 +990,19 @@ const metronome = {
 		let ticksF = Math.floor(ticks);
 		
 		this.timelineWidth = this.scale * ticks;
-		this.timeline.graph.inner.ticks.style.width = `${this.timelineWidth}px`;
+		this.timeline.graph.inner.style.width = `${this.timelineWidth}px`;
 		this.log("DEBG", `maxTick = ${ticks}`);
 
 		for (let tick = 0; tick <= ticksF; tick++) {
 			if (!this.tickBars[tick]) {
 				this.tickBars[tick] = document.createElement("div");
 
-				if (tick % 4 === 0)
+				if (tick % 4 === 0) {
 					this.tickBars[tick].classList.add("downbeat");
+
+					if (tick > 0)
+						this.drawLabel(tick / 4, tick);
+				}
 
 				this.timeline.graph.inner.ticks.appendChild(this.tickBars[tick]);
 			}
@@ -950,10 +1020,11 @@ const metronome = {
 	},
 
 	renderWaveform() {
-		let duration = (this.timeline.graph.preview.clientWidth / (this.scale / 2)) * this.timePerBeat;
-		this.drawWaveform(this.timeline.graph.preview, this.time, duration, {
-			shift: 0.5
-		});
+		this.drawWaveform(
+			this.timeline.graph.preview,
+			this.time,
+			this.timelineDuration,
+			{ shift: 0.5 });
 	},
 
 	renderComparator(tick, force = false) {
@@ -1184,7 +1255,20 @@ const metronome = {
 	updateOffsetWidth() {
 		let offsetWidth = this.pxPerSecond * this.offset;
 		this.log("DEBG", `offsetWidth = ${offsetWidth}`);
-		this.timeline.graph.inner.ticks.style.marginLeft = `${offsetWidth}px`;
+		this.timeline.graph.inner.style.marginLeft = `${offsetWidth}px`;
+	},
+
+	updateDurationView() {
+		// Update progress's view zone
+		let viewWidth = (this.graphWidth * (this.timelineDuration / this.audio.duration)) / 2;
+		this.timeline.graph.progress.view.style.width = `${viewWidth}px`;
+	},
+
+	updateTimelineProgress() {
+		let progress = this.time / this.audio.duration;
+		this.timeline.graph.inner.style.transform = `translateX(-${progress * this.timelineWidth}px)`;
+		this.timeline.graph.progress.view.style.left = `${progress * 100}%`;
+		this.timeline.graph.progress.cursor.style.left = `${progress * 100}%`;
 	},
 
 	/**
@@ -1192,6 +1276,9 @@ const metronome = {
 	 * @param	{Number}	time
 	 */
 	async seek(time) {
+		if (!this.audio.instance)
+			return;
+
 		time = Math.min(time, this.audio.duration);
 		time = Math.max(time, 0);
 
@@ -1202,7 +1289,7 @@ const metronome = {
 		if (!this.playing) {
 			let current = this.time;
 			let delta = time - current;
-			let duration = Math.pow(Math.abs(delta), 0.25);
+			let duration = Math.pow(Math.abs(delta), 0.3) / 3;
 			
 			if (this.seekAnimator)
 				this.seekAnimator.cancel();
@@ -1280,11 +1367,20 @@ const metronome = {
 		this.timePerBeat = 60 / bpm;
 		this.pxPerSecond = this.scale / this.timePerBeat;
 
+		if (!this.bpmLabel) {
+			this.bpmLabel = this.drawLabel(`0 BPM`, 0, {
+				color: "green",
+				align: "right"
+			});
+		}
+
+		this.bpmLabel.innerText = `${bpm} BPM`;
 		this.reset();
 		this.renderTicks();
 		this.renderWaveform();
 		this.renderComparator(this.comparatorCurrentTick, true);
 		this.updateOffsetWidth();
+		this.updateDurationView();
 	},
 
 	/**
@@ -1295,6 +1391,15 @@ const metronome = {
 		offset = round(round(offset, 4), 3);
 		this.currentOffset = offset;
 		this.timingPanel.controls.offset.input.value = offset * 1000;
+
+		if (!this.offsetLabel) {
+			this.offsetLabel = this.drawLabel(`O 0`, 0, {
+				color: "yellow",
+				align: "left"
+			});
+		}
+
+		this.offsetLabel.innerText = `O ${offset * 1000}`;
 		this.updateOffsetWidth();
 		this.renderWaveform();
 		this.renderComparator(this.comparatorCurrentTick, true);
@@ -1310,10 +1415,10 @@ const metronome = {
 	 * @param	{Number}	currentTime
 	 */
 	set time(currentTime) {
-		let pt = parseTime(currentTime, { msDigit: 3 });
+		if (!this.audio.instance)
+			return;
 
-		// Weird stuff... But it work
-		let progress = currentTime / this.audio.duration;
+		let pt = parseTime(currentTime, { msDigit: 3 });
 
 		// I wish this font is fixed-width so I don't have
 		// to do this ugly hack...
@@ -1331,9 +1436,8 @@ const metronome = {
 		if (!this.seekAnimator || this.seekAnimator.completed)
 			this.seekTarget = currentTime;
 
-		this.timeline.graph.inner.style.transform = `translateX(-${progress * this.timelineWidth}px)`;
-		
 		this.currentTime = currentTime;
+		this.updateTimelineProgress();
 		this.timingPanel.inputs.time.value = currentTime;
 		this.renderWaveform();
 	},
@@ -1343,12 +1447,19 @@ const metronome = {
 	},
 
 	set scale(scale) {
+		if (scale < 1)
+			scale = 10;
+
 		this.tickScale = scale;
 		this.timingPanel.inputs.scale.value = scale;
 		this.pxPerSecond = this.tickScale / this.timePerBeat;
+
 		this.renderTicks();
 		this.renderWaveform();
 		this.updateOffsetWidth();
+		this.updateDurationView();
+		this.updateTimelineProgress();
+		this.updateLabels();
 	},
 
 	get scale() {
@@ -1374,5 +1485,13 @@ const metronome = {
 	 */
 	get tick() {
 		return (this.time - this.offset) / this.timePerBeat;
+	},
+
+	get graphWidth() {
+		return this.timeline.graph.preview.clientWidth;
+	},
+
+	get timelineDuration() {
+		return (this.graphWidth / (this.scale / 2)) * this.timePerBeat;
 	}
 }

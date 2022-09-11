@@ -64,9 +64,15 @@
 	flex-grow: 1;
 	flex-shrink: 1;
 
+	height: 120px;
+	--labels: 20px;
+	--progress: 30px;
+
+	padding-top: var(--labels);
+	padding-bottom: var(--progress);
+
 	background-color: var(--background-2);
-	overflow-x: scroll;
-	overflow-y: hidden;
+	overflow: hidden;
 }
 
 .MetronomeContainer > .timeline > .graph::-webkit-scrollbar {
@@ -78,20 +84,67 @@
 	top: 0;
 	left: 0;
 	width: 100%;
-	height: 100%;
+	height: calc(100% - var(--labels) - var(--progress));
+	margin-top: var(--labels);
 }
 
 .MetronomeContainer > .timeline > .graph > .inner {
 	position: absolute;
-	height: 100%;
-
+	top: 0;
+	height: calc(100% - var(--progress));
 	left: 50%;
+}
+
+.MetronomeContainer > .timeline > .graph > .inner > .labels {
+	position: absolute;
+	width: 100%;
+	top: 6px;
+	height: var(--labels);
+}
+
+.MetronomeContainer > .timeline > .graph > .inner > .labels > tag {
+	position: absolute;
+	bottom: 0;
+	font-size: 14px; 
+	color: rgb(218, 218, 218);
+	white-space: nowrap;
+
+	transform: translateX(2px);
+	background-color: var(--background-4);
+}
+
+.MetronomeContainer > .timeline > .graph > .inner > .labels > tag[data-color="blue"] {
+	color: black;
+	background-color: var(--osc-color-blue);
+}
+
+.MetronomeContainer > .timeline > .graph > .inner > .labels > tag[data-color="yellow"] {
+	color: black;
+	background-color: var(--osc-color-yellow);
+}
+
+.MetronomeContainer > .timeline > .graph > .inner > .labels > tag[data-color="red"] {
+	background-color: var(--osc-color-red);
+}
+
+.MetronomeContainer > .timeline > .graph > .inner > .labels > tag[data-color="green"] {
+	color: black;
+	background-color: var(--osc-color-green);
+}
+
+.MetronomeContainer > .timeline > .graph > .inner > .labels > tag[data-align="center"] {
+	transform: translateX(-50%);
+}
+
+.MetronomeContainer > .timeline > .graph > .inner > .labels > tag[data-align="left"] {
+	transform: translateX(calc(-100% - 2px));
 }
 
 .MetronomeContainer > .timeline > .graph > .inner > .ticks {
 	position: absolute;
-	top: 0;
-	height: 100%;
+	width: 100%;
+	top: var(--labels);
+	height: calc(100% - var(--labels));
 }
 
 .MetronomeContainer > .timeline > .graph > .inner > .ticks > div {
@@ -114,7 +167,7 @@
 .MetronomeContainer > .timeline > .graph > .cursor {
 	position: absolute;
 	top: 0;
-	bottom: 0;
+	height: calc(100% - var(--labels));
 	left: 50%;
 	transform: translateX(-50%);
 }
@@ -124,6 +177,43 @@
 	top: 50%;
 	left: 30px;
 	transform: translateY(-50%);
+}
+
+.MetronomeContainer > .timeline > .graph > .progress {
+	position: absolute;
+	left: 0;
+	bottom: 0;
+	width: 100%;
+	height: var(--progress);
+	background-color: var(--background-4);
+}
+
+.MetronomeContainer > .timeline > .graph > .progress > canvas {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+}
+
+.MetronomeContainer > .timeline > .graph > .progress > .view {
+	position: absolute;
+	left: 0;
+	width: 100px;
+	height: 100%;
+	transform: translateX(-50%);
+	background-color: white;
+	opacity: 0.3;
+	pointer-events: none;
+}
+
+.MetronomeContainer > .timeline > .graph > .progress > .cursor {
+	position: absolute;
+	left: 0;
+	top: 0;
+	height: 100%;
+	transform: translateX(-50%);
+	pointer-events: none;
 }
 
 .MetronomeContainer > .timeline > .buttons {

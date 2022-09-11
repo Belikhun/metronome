@@ -10,6 +10,10 @@ body {
 	height: 100%;
 }
 
+tag {
+	padding: 2px 10px 0;
+}
+
 .MetronomeControlPanel {
 	display: flex;
 	flex-direction: row;
