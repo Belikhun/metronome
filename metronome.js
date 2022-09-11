@@ -76,7 +76,7 @@ const metronome = {
 	/** @type {HTMLElement[]} */
 	tickBars: [],
 
-	/** @type {HTMLElement[]} */
+	/** @type {Object<number, HTMLElement[]>} */
 	labels: [],
 
 	/**
@@ -837,6 +837,9 @@ const metronome = {
 		color = "gray",
 		align = "center"
 	} = {}) {
+		if (!this.labels[tick])
+			this.labels[tick] = []
+
 		let node = document.createElement("tag");
 		node.innerText = label;
 		node.dataset.color = color;
@@ -844,14 +847,14 @@ const metronome = {
 		node.dataset.tick = tick;
 		node.style.left = `${this.scale * tick}px`;
 		this.timeline.graph.inner.label.appendChild(node);
-		this.labels.push(node);
+		this.labels[tick].push(node);
 		return node;
 	},
 
 	updateLabels() {
-		for (let label of this.labels) {
-			let tick = parseFloat(label.dataset.tick);
-			label.style.left = `${this.scale * tick}px`;
+		for (let [tick, labels] of Object.entries(this.labels)) {
+			for (let label of labels)
+				label.style.left = `${this.scale * tick}px`;
 		}
 	},
 
@@ -1012,14 +1015,15 @@ const metronome = {
 			if (!this.tickBars[tick]) {
 				this.tickBars[tick] = document.createElement("div");
 
-				if (tick % 4 === 0) {
+				if (tick % 4 === 0)
 					this.tickBars[tick].classList.add("downbeat");
 
-					if (tick > 0)
-						this.drawLabel(tick / 4, tick);
-				}
-
 				this.timeline.graph.inner.ticks.appendChild(this.tickBars[tick]);
+			}
+
+			if (tick > 0 && tick % 4 === 0) {
+				if (!this.labels[tick])
+					this.drawLabel(tick / 4, tick);
 			}
 
 			this.tickBars[tick].style.left = `${this.scale * tick}px`;
