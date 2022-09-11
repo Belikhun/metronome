@@ -5,7 +5,7 @@ const main = {
 	audios: [
 		{ path: "audios/Let Me Go.mp3", bpm: 170, offset: 0.177 },
 		{ path: "audios/Viva Happy.mp3", bpm: 148, offset: -0.02 },
-		{ path: "audios/Tell Me Baby feat. mow 2.mp3", bpm: 170, offset: 0.177 },
+		{ path: "audios/Tell Me Baby feat. mow 2.mp3", bpm: 170, offset: 0.177, time: 66.84 },
 		{ path: "audios/Artificial Snow.mp3", bpm: 256, offset: 1.416 },
 		{ path: "audios/test60.mp3", bpm: 60, offset: 0.130 },
 		{ path: "audios/metro_170bpm_5min.mp3", bpm: 170, offset: 0 }
@@ -24,13 +24,26 @@ const main = {
 		await metronome.init(this.container, { scale: 80 });
 
 		this.view = makeTree("div", "MetronomeControlPanel", {
-			label: { tag: "label", text: "Control Panel" },
+			label: { tag: "label", text: "Bảng Điều Khiển (kind of)" },
 			audios: { tag: "div", class: "audios" },
 
 			file: { tag: "div", class: "loadFile", child: {
 				input: { tag: "input", type: "file" },
-				load: createButton("LOAD", { complex: true })
-			}}
+				load: createButton("LOAD", { style: "round", complex: true })
+			}},
+
+			note: createNote({
+				level: "info",
+				style: "round",
+				message: `
+					<h4>Phím tắt</h4>
+					<ul>
+						<li><code>Phím Cách</code>: tiếp tục/tạm dừng</li>
+						<li><code>S</code>: dừng lại</li>
+						<li><code>Lăn Chuột</code> tại timeline: đổi thời gian</li>
+						<li><code>Ctrl + Lăn Chuột</code> tại timeline: phóng to/thu nhỏ</li>
+					</ul>`
+			})
 		});
 
 		// Inject our own panel
@@ -59,6 +72,26 @@ const main = {
 				this.active = node;
 			});
 		}
+
+		this.view.file.load.addEventListener("click", async () => {
+			let file = this.view.file.input.files[0]
+
+			if (!file)
+				return;
+
+			this.view.file.load.loading(true);
+
+			try {
+				await metronome.load(file);
+				metronome.bpm = 60;
+				metronome.offset = 0;
+			} catch(e) {
+				errorHandler(e);
+				clog("ERRR", e);
+			}
+
+			this.view.file.load.loading(false);
+		});
 	}
 }
 

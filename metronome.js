@@ -17,11 +17,11 @@ const metronome = {
 
 	SAMPLE_PER_SEC: 300,
 
-	METER_MIN: -69,
+	METER_MIN: -39,
 	METER_MAX: 5,
 	METER_STEP: 5,
 	METER_LINE: 10,
-	METER_UPDATE: 20,
+	METER_UPDATE: 40,
 	meterLastUpdate: 0,
 
 	/** Pixels per tick */
@@ -197,15 +197,15 @@ const metronome = {
 				max: { tag: "span", class: "max" }
 			}},
 
-			label: { tag: "div", class: "label", text: "VOLUME METERS" }
+			label: { tag: "div", class: "label", text: "ÂM LƯỢNG" }
 		});
 
 		this.wavesPanel = makeTree("div", "waves", {
-			
+			label: { tag: "label", text: "Âm Thanh" }
 		});
 
 		this.timingPanel = makeTree("div", "timing", {
-			label: { tag: "label", text: "Timing" },
+			label: { tag: "label", text: "Thời gian" },
 
 			top: { tag: "div", class: "top", child: {
 				metronome: { tag: "div", class: "metronome", child: {
@@ -228,13 +228,13 @@ const metronome = {
 			controls: { tag: "div", class: "controls", child: {
 				offset: { tag: "div", class: "offset", child: {
 					adjust: this.createAdjustmentButton({
-						label: "Offset",
+						label: "Độ trễ",
 						steps: [1, 2, 5, 10],
 						onInput: (value) => this.offset = this.currentOffset + (value / 1000)
 					}),
 
 					input: createOscInput({
-						label: "Offset",
+						label: "Độ trễ",
 						type: "number",
 						onEnter: (value) => this.offset = value / 1000
 					})
@@ -256,9 +256,16 @@ const metronome = {
 			}},
 
 			inputs: { tag: "div", class: "inputs", child: {
+				time: createOscInput({
+					type: "number",
+					label: "Thời gian",
+					value: this.time,
+					onEnter: (value) => this.seek(value)
+				}),
+
 				scale: createOscInput({
 					type: "number",
-					label: "Scale",
+					label: "Tỉ lệ (px)",
 					onEnter: (value) => this.scale = value
 				}),
 
@@ -305,7 +312,14 @@ const metronome = {
 		this.timeline.stop.addEventListener("click", () => this.stop());
 
 		this.timeline.graph.addEventListener("wheel", (e) => {
-			this.seek(this.seekTarget + (e.deltaY / 100) * (this.scale / 50));
+			// Scale instead when ctrl key is holding
+			if (e.ctrlKey) {
+				e.preventDefault();
+				this.scale = this.tickScale - (e.deltaY / 100) * 10;
+				return;
+			}
+
+			this.seek(this.seekTarget + (e.deltaY / 100) * (this.scale / 100));
 		});
 
 		// Init
@@ -467,6 +481,7 @@ const metronome = {
 
 		container.decrease.addEventListener("mouseleave", () => hoverD(-1));
 		container.increase.addEventListener("mouseleave", () => hoverI(-1));
+		container.addEventListener("mouseleave", () => container.value.classList.remove("bounce"));
 
 		return {
 			container
@@ -563,7 +578,13 @@ const metronome = {
 			} else {
 				let reader = new FileReader();
 				reader.readAsArrayBuffer(audio);
-				this.audio.buffer = await this.audio.context.decodeAudioData(reader);
+
+				let buffer = await new Promise((resolve, reject) => {
+					reader.addEventListener("error", (e) => reject(e));
+					reader.addEventListener("loadend", () => resolve(reader.result));
+				});
+
+				this.audio.buffer = await this.audio.context.decodeAudioData(buffer);
 				this.audio.instance = new Audio(URL.createObjectURL(audio));
 			}
 		} catch(error) {
@@ -1169,7 +1190,7 @@ const metronome = {
 				return;
 			
 			this.seekAnimator = undefined;
-			
+
 			// Calculate current tick.
 			let tick = (this.time - this.offset) / this.timePerBeat;
 			this.currentTick = Math.floor(tick);
@@ -1259,9 +1280,13 @@ const metronome = {
 
 		if (!this.playing)
 			this.audio.instance.currentTime = currentTime;
+		else
+			this.seekTarget = currentTime;
 
 		this.timeline.graph.inner.style.transform = `translateX(-${progress * this.timelineWidth}px)`;
+		
 		this.currentTime = currentTime;
+		this.timingPanel.inputs.time.value = currentTime;
 		this.renderWaveform();
 	},
 

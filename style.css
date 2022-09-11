@@ -13,10 +13,11 @@ body {
 .MetronomeControlPanel {
 	display: flex;
 	flex-direction: row;
+	align-items: flex-start;
 }
 
-.MetronomeControlPanel > .audios {
-	margin: 10px 0;
+.MetronomeControlPanel > div {
+	margin-right: 30px;
 }
 
 .MetronomeControlPanel > .audios > .audio {
@@ -36,4 +37,17 @@ body {
 	margin-left: 16px;
 	color: black;
 	background-color: var(--osc-color-yellow);
+}
+
+.MetronomeControlPanel > .loadFile {
+	display: flex;
+	flex-direction: column;
+}
+
+.MetronomeControlPanel > .loadFile > input {
+	margin-bottom: 20px;
+}
+
+.MetronomeControlPanel > .note {
+	width: fit-content;
 }
