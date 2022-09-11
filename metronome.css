@@ -167,7 +167,7 @@
 .MetronomeContainer > .timeline > .graph > .cursor {
 	position: absolute;
 	top: 0;
-	height: calc(100% - var(--labels));
+	height: calc(100% - var(--progress));
 	left: 50%;
 	transform: translateX(-50%);
 }
