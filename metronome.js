@@ -30,7 +30,7 @@ const metronome = {
 	/** @type {TreeDOM} */
 	timingPanel: undefined,
 
-	SAMPLE_PER_SEC: 300,
+	SAMPLE_PER_SEC: 600,
 
 	METER_MIN: -39,
 	METER_MAX: 5,
@@ -121,6 +121,7 @@ const metronome = {
 		rightData: undefined,
 
 		points: [],
+		reduces: [],
 
 		leftMax: 0,
 		rightMax: 0,
@@ -704,8 +705,9 @@ const metronome = {
 	sampleDataPoints() {
 		let start = performance.now();
 		this.log("INFO", "sampling data points...");
-
-		this.audio.points = [];
+		
+		this.audio.points = []
+		this.audio.reduces = []
 		let channels = this.audio.buffer.numberOfChannels > 1
 			? [0, 1] : [0];
 
@@ -740,6 +742,26 @@ const metronome = {
 		this.log("OKAY", `sampling complete! took ${performance.now() - start}ms`);
 	},
 
+	getSamplePoints(factor) {
+		if (!this.audio.points || this.audio.points.length === 0)
+			return []
+
+		if (factor === 1)
+			return this.audio.points;
+
+		if (!this.audio.reduces[factor]) {
+			this.log("INFO", `calculating sample points by factor ${factor}`);
+			this.audio.reduces[factor] = [
+				reduceNumbersArray(this.audio.points[0], factor),
+				this.audio.points[1]
+					? reduceNumbersArray(this.audio.points[1], factor)
+					: []
+			]
+		}
+
+		return this.audio.reduces[factor];
+	},
+
 	/**
 	 * Draw waveform onto canvas
 	 * @param	{HTMLCanvasElement}			canvas
@@ -770,9 +792,18 @@ const metronome = {
 		from -= (length / 2) * shift;
 		length = length * (1 - shift);
 
+		// Calculate initial data point's count to get reduce ratio.
+		let sps = this.SAMPLE_PER_SEC;
+		let count = length * sps;
+		let ratio = Math.max(Math.round(count / this.graphWidth), 1);
+		sps /= ratio;
+		
+		// New count
+		count = length * sps;
+		let points = this.getSamplePoints(ratio);
+
 		let ctx = canvas.getContext("2d");
-		let start = from * this.SAMPLE_PER_SEC;
-		let count = length * this.SAMPLE_PER_SEC;
+		let start = from * sps;
 		let fStart = Math.floor(start);
 		let fCount = Math.ceil(count);
 		let to = fStart + fCount;
@@ -782,13 +813,13 @@ const metronome = {
 		
 		ctx.fillStyle = color;
 		
-		if (this.audio.points[0]) {
+		if (points[0]) {
 			// Left channel on top
 			ctx.beginPath();
 			ctx.moveTo(0, height / 2 + 1);
 	
 			for (let i = fStart; i <= to; i += 1) {
-				data = this.audio.points[0][i] || 0;
+				data = points[0][i] || 0;
 	
 				if (data === 0)
 					continue;
@@ -803,13 +834,13 @@ const metronome = {
 			ctx.fill();
 		}
 
-		if (this.audio.points[1]) {
+		if (points[1]) {
 			// Right channel on bottom
 			ctx.beginPath();
 			ctx.moveTo(0, height / 2 - 1);
 	
 			for (let i = fStart; i <= to; i += 1) {
-				data = this.audio.points[1][i] || 0;
+				data = points[1][i] || 0;
 	
 				if (data === 0)
 					continue;
