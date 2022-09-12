@@ -532,7 +532,7 @@
 .MetronomeContainer > .view > .panels > .monitors > span {
 	position: relative;
 	display: inline-block;
-	margin: 10px 60px 60px 10px;
+	margin: 30px 60px 60px 10px;
 
 	--width: 600px;
 	--height: 200px;
