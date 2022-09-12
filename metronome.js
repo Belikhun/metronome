@@ -25,7 +25,7 @@ const metronome = {
 	meters: undefined,
 	
 	/** @type {TreeDOM} */
-	wavesPanel: undefined,
+	monitors: undefined,
 	
 	/** @type {TreeDOM} */
 	timingPanel: undefined,
@@ -47,6 +47,8 @@ const metronome = {
 	currentBPM: 0,
 	currentOffset: 0,
 	currentTime: 0,
+	currentBeatTick: -1,
+	currentRulerSampleRate: 0,
 	seekTarget: 0,
 
 	/** @type {HTMLElement} */
@@ -55,7 +57,17 @@ const metronome = {
 	/** @type {HTMLElement} */
 	bpmLabel: undefined,
 
+	/**
+	 * This is a specical variable used to tick in update
+	 * function, do not use this if you don't know what you
+	 * are doing!
+	 * 
+	 * For a accurate measurement of current tick please use
+	 * `metronome.tick`.
+	 * @type {Number}
+	 */
 	currentTick: -1,
+
 	timePerBeat: 1,
 	timelineWidth: 0,
 
@@ -114,11 +126,17 @@ const metronome = {
 		/** @type {AnalyserNode} */
 		right: undefined,
 
-		/** @type {Uint8Array} */
+		/** @type {Float32Array} */
 		leftData: undefined,
 
-		/** @type {Uint8Array} */
+		/** @type {Float32Array} */
 		rightData: undefined,
+
+		/** @type {Float32Array} */
+		leftFreqs: undefined,
+
+		/** @type {Float32Array} */
+		rightFreqs: undefined,
 
 		points: [],
 		reduces: [],
@@ -186,7 +204,20 @@ const metronome = {
 					ms3: { tag: "span", text: "0" }
 				}},
 
-				bpm: { tag: "div", class: "bpm", text: "0 BPM" }
+				ticks: { tag: "div", class: "ticks", child: {
+					current: { tag: "span", class: "current", text: "0" },
+					sep1: { tag: "sep", text: "/" },
+					total: { tag: "span", class: "total", text: "0" }
+				}},
+
+				bpm: { tag: "div", class: "bpm", text: "0 BPM" },
+
+				dots: { tag: "div", class: "dots", child: {
+					0: { tag: "span" },
+					1: { tag: "span" },
+					2: { tag: "span" },
+					3: { tag: "span" }
+				}}
 			}},
 
 			graph: { tag: "span", class: "graph", child: {
@@ -240,8 +271,22 @@ const metronome = {
 			label: { tag: "div", class: "label", text: "ÂM LƯỢNG" }
 		});
 
-		this.wavesPanel = makeTree("div", "waves", {
-			label: { tag: "label", text: "Âm Thanh" }
+		this.monitors = makeTree("div", "monitors", {
+			label: { tag: "label", text: "Âm Thanh" },
+
+			left: { tag: "span", class: "left", child: {
+				canvas: { tag: "canvas" },
+				ruler: { tag: "div", class: "ruler" },
+				db: { tag: "div", class: "db" },
+				label: { tag: "label", text: "Trái" }
+			}},
+
+			right: { tag: "span", class: "right", child: {
+				canvas: { tag: "canvas" },
+				ruler: { tag: "div", class: "ruler" },
+				db: { tag: "div", class: "db" },
+				label: { tag: "label", text: "Phải" }
+			}},
 		});
 
 		this.timingPanel = makeTree("div", "timing", {
@@ -333,7 +378,7 @@ const metronome = {
 			meters: this.meters,
 
 			panels: { tag: "span", class: "panels", child: {
-				waves: this.wavesPanel,
+				waves: this.monitors,
 				timing: this.timingPanel
 			}}
 		});
@@ -381,7 +426,7 @@ const metronome = {
 		this.meters.style.setProperty("--rate", `${this.METER_UPDATE}ms`);
 		this.bpm = bpm;
 		this.scale = scale;
-		this.initMeterRuler();
+		this.initDbRulers();
 		this.renderComparator(0);
 
 		await this.initSounds();
@@ -551,24 +596,37 @@ const metronome = {
 		}
 	},
 
-	initMeterRuler() {
+	initDbRulers() {
 		emptyNode(this.meters.ruler);
+		emptyNode(this.monitors.left.db);
+		emptyNode(this.monitors.right.db);
 		let total = this.METER_MAX - this.METER_MIN;
+		let addToMonitors = false;
 
 		// Generate ruler
 		for (let i = this.METER_MIN; i <= this.METER_MAX; i += 1) {
+			addToMonitors = false;
+
 			let node = document.createElement("div");
 			node.style.bottom = `${(Math.abs(i - this.METER_MIN) / total) * 100}%`;
 			
 			if (i % this.METER_STEP === 0) {
 				node.innerText = i;
 				node.classList.add("step");
+				addToMonitors = true;
+			}
+			
+			if (i % this.METER_LINE === 0) {
+				node.classList.add("line");
+				addToMonitors = true;
 			}
 
-			if (i % this.METER_LINE === 0)
-				node.classList.add("line");
-
 			this.meters.ruler.appendChild(node);
+
+			if (addToMonitors) {
+				this.monitors.left.db.appendChild(node.cloneNode(true));
+				this.monitors.right.db.appendChild(node.cloneNode(true));
+			}
 		}
 	},
 
@@ -689,17 +747,22 @@ const metronome = {
 		this.audio.left = this.audio.context.createAnalyser();
 		this.audio.right = this.audio.context.createAnalyser();
 
-		this.audio.left.fftSize = 64;
-		this.audio.right.fftSize = 64;
+		this.audio.left.fftSize = 128;
+		this.audio.right.fftSize = 128;
 
 		this.audio.leftData = new Float32Array(this.audio.left.frequencyBinCount);
 		this.audio.rightData = new Float32Array(this.audio.right.frequencyBinCount);
+		this.audio.leftFreqs = new Float32Array(this.audio.left.frequencyBinCount);
+		this.audio.rightFreqs = new Float32Array(this.audio.right.frequencyBinCount);
 		
 		let source = this.audio.context.createMediaElementSource(this.audio.instance);
 		this.audio.splitter.connect(this.audio.left, 0, 0);
 		this.audio.splitter.connect(this.audio.right, 1, 0);
 		source.connect(this.audio.splitter);
 		source.connect(this.audio.context.destination);
+
+		// Draw monitor's ruler.
+		this.updateMonitorRulers();
 	},
 	
 	sampleDataPoints() {
@@ -857,12 +920,74 @@ const metronome = {
 	},
 
 	/**
+	 * Draw monitor based on audio's data.
+	 * @param	{HTMLCanvasElement}		canvas
+	 * @param	{Number[] | Uint8Array}	data
+	 * @param	{Object}				options
+	 * @param	{Number}				options.color	Wave color
+	 * @param	{Number}				options.width	Canvas width
+	 * @param	{Number}				options.height	Canvas height
+	 * @param	{Number}				options.space	Bar spacing
+	 */
+	drawMonitor(canvas, data, {
+		color = "#76d1ff",
+		width = undefined,
+		height = undefined,
+		space = 4
+	} = {}) {
+		if (typeof width === "number")
+			canvas.width = width;
+		else
+			width = canvas.width = canvas.clientWidth;
+		
+		if (typeof height === "number")
+			canvas.height = height;
+		else
+			height = canvas.height = canvas.clientHeight;
+
+		let ctx = canvas.getContext("2d");
+		ctx.clearRect(0, 0, width, height);
+		
+		// Bar style
+		// ctx.fillStyle = color;
+		// let barWidth = (width - space * (data.length - 1)) / data.length;
+		// let x = 0, value = 0;
+
+		// for (let point of data) {
+		// 	value = scaleValue(point + 30, [this.METER_MIN, this.METER_MAX], [0, 1]);
+		// 	ctx.fillRect(x, height * (1 - value), barWidth, height);
+		// 	x += barWidth + space;
+		// }
+
+		// Line style
+		ctx.strokeStyle = color;
+		ctx.lineWidth = 3;
+		let barWidth = width / data.length;
+		let x = 0, value = 0;
+
+		for (let point of data) {
+			value = scaleValue(point + 30, [this.METER_MIN, this.METER_MAX], [0, 1]);
+
+			if (x === 0) {
+				// Initial point we do moveTo
+				ctx.moveTo(0, height * (1 - value));
+			} else {
+				ctx.lineTo(x, height * (1 - value));
+			}
+
+			x += barWidth;
+		}
+
+		ctx.stroke();
+	},
+
+	/**
 	 * Draw a badge on timeline
-	 * @param {String}							badge 
-	 * @param {Number}							tick 
-	 * @param {Object}							options
-	 * @param {String}							options.color
-	 * @param {"left" | "right" | "center"}		options.align
+	 * @param	{String}							badge 
+	 * @param	{Number}							tick 
+	 * @param	{Object}							options
+	 * @param	{String}							options.color
+	 * @param	{"left" | "right" | "center"}		options.align
 	 */
 	drawLabel(label, tick, {
 		color = "gray",
@@ -1019,6 +1144,9 @@ const metronome = {
 			this.meterLastUpdate = now;
 		}
 
+		// Update monitors
+		this.updateMonitors();
+
 		if (this.alternate) {
 			// Alternate frame.
 		}
@@ -1035,14 +1163,14 @@ const metronome = {
 	},
 
 	renderTicks() {
-		let ticks = this.audio.duration / this.timePerBeat;
-		let ticksF = Math.floor(ticks);
+		let ticks = this.ticks;
+		let tickF = Math.floor(ticks);
 		
 		this.timelineWidth = this.scale * ticks;
 		this.timeline.graph.inner.style.width = `${this.timelineWidth}px`;
 		this.log("DEBG", `maxTick = ${ticks}`);
 
-		for (let tick = 0; tick <= ticksF; tick++) {
+		for (let tick = 0; tick <= tickF; tick++) {
 			if (!this.tickBars[tick]) {
 				this.tickBars[tick] = document.createElement("div");
 
@@ -1061,7 +1189,7 @@ const metronome = {
 		}
 
 		// Remove unused ticks
-		for (let tick = ticks + 1; tick < this.tickBars.length; tick++) {
+		for (let tick = tickF + 1; tick < this.tickBars.length; tick++) {
 			if (this.tickBars[tick]) {
 				this.timeline.graph.inner.ticks.removeChild(this.tickBars[tick]);
 				delete this.tickBars[tick];
@@ -1078,6 +1206,9 @@ const metronome = {
 	},
 
 	renderComparator(tick, force = false) {
+		if (tick === this.comparatorCurrentTick && !force)
+			return;
+
 		let c = this.timingPanel.top.comparator;
 		let from = Math.ceil(tick - (this.COMPARATOR_TICKS / 2));
 		let to = Math.floor(tick + (this.COMPARATOR_TICKS / 2));
@@ -1159,6 +1290,44 @@ const metronome = {
 		this.comparatorCurrentTick = tick;
 	},
 
+	updateMonitors() {
+		this.audio.left.getFloatFrequencyData(this.audio.leftFreqs);
+		this.audio.right.getFloatFrequencyData(this.audio.rightFreqs);
+		this.drawMonitor(this.monitors.left.canvas, this.audio.leftFreqs);
+		this.drawMonitor(this.monitors.right.canvas, this.audio.rightFreqs);
+	},
+
+	updateMonitorRulers({
+		step = 1000,
+		label = 2000
+	} = {}) {
+		let sampleRate = this.audio.context.sampleRate;
+		if (sampleRate === this.currentRulerSampleRate)
+			return;
+
+		this.currentRulerSampleRate = sampleRate;
+		emptyNode(this.monitors.left.ruler);
+		emptyNode(this.monitors.right.ruler);
+		let target = sampleRate / 2;
+
+		for (let i = 0; i <= target; i += step) {
+			let p = i / target;
+
+			let node = document.createElement("span");
+			if (i % label === 0) {
+				node.classList.add("label");
+				node.innerText = (i > 0)
+					? `${i / 1000}k`
+					: `Hz`;
+			}
+
+			node.style.left = `${p * 100}%`;
+			node.dataset.value = i;
+			this.monitors.left.ruler.appendChild(node);
+			this.monitors.right.ruler.appendChild(node.cloneNode(true));
+		}
+	},
+
 	/**
 	 * Update meter for specified channel
 	 * @param	{"left" | "right"}	channel
@@ -1170,8 +1339,8 @@ const metronome = {
 			: this.audio.rightData);
 
 		let data = channel === "left" ? this.audio.leftData : this.audio.rightData;
+		
 		let sum = 0;
-
 		for (let amplitude of data)
 			sum += amplitude * amplitude;
 
@@ -1353,11 +1522,7 @@ const metronome = {
 				return;
 			
 			this.seekAnimator = undefined;
-
-			// Calculate current tick.
-			let tick = (this.time - this.offset) / this.timePerBeat;
-			this.currentTick = Math.floor(tick);
-			this.renderComparator(this.currentTick);
+			this.currentTick = this.tick; 
 		} else {
 			this.audio.instance.currentTime = time;
 			this.time = time;
@@ -1408,14 +1573,15 @@ const metronome = {
 
 		bpm = round(round(bpm, 4), 3);
 		this.timingPanel.controls.bpm.input.value = bpm;
+		this.currentBPM = bpm;
+		this.timePerBeat = 60 / bpm;
+		this.pxPerSecond = this.scale / this.timePerBeat;
 
 		let weightPos = scaleValue(bpm, [0, 500], [6, 76]);
-		this.currentBPM = bpm;
 		this.timingPanel.top.metronome.swing.weight.style.top = `${weightPos}%`;
 		this.timingPanel.top.metronome.value.innerText = bpm;
 		this.timeline.timer.bpm.innerText = `${bpm} BPM`;
-		this.timePerBeat = 60 / bpm;
-		this.pxPerSecond = this.scale / this.timePerBeat;
+		this.timeline.timer.ticks.total.innerText = this.ticks.toFixed(1);
 
 		if (!this.bpmLabel) {
 			this.bpmLabel = this.drawLabel(`0 BPM`, 0, {
@@ -1469,7 +1635,9 @@ const metronome = {
 		if (!this.audio.instance)
 			return;
 
+		this.currentTime = currentTime;
 		let pt = parseTime(currentTime, { msDigit: 3 });
+		let tickF = Math.floor(this.tick);
 
 		// I wish this font is fixed-width so I don't have
 		// to do this ugly hack...
@@ -1481,13 +1649,23 @@ const metronome = {
 		this.timeline.timer.time.ms2.innerText = pt.ms[1];
 		this.timeline.timer.time.ms3.innerText = pt.ms[2];
 
-		if (!this.playing)
+		if (!this.playing) {
+			// Update comparator
+			this.renderComparator(tickF);
 			this.audio.instance.currentTime = currentTime;
+		}
 		
 		if (!this.seekAnimator || this.seekAnimator.completed)
 			this.seekTarget = currentTime;
 
-		this.currentTime = currentTime;
+		let bt = tickF % 4;
+		if (this.currentBeatTick !== bt) {
+			this.timeline.timer.dots.dataset.tick = bt;
+			this.currentBeatTick = bt;
+		}
+
+		this.timeline.timer.ticks.current.innerText = this.tick.toFixed(1);
+
 		this.updateTimelineProgress();
 		this.timingPanel.inputs.time.value = currentTime;
 		this.renderWaveform();
@@ -1536,6 +1714,14 @@ const metronome = {
 	 */
 	get tick() {
 		return (this.time - this.offset) / this.timePerBeat;
+	},
+
+	/**
+	 * Get maximum ticks
+	 * @return	{Number}
+	 */
+	get ticks() {
+		return this.audio.duration / this.timePerBeat;
 	},
 
 	get graphWidth() {

@@ -41,6 +41,7 @@
 	font-family: "Torus Pro";
 	font-size: 46px;
 	font-weight: 300;
+	line-height: 1;
 }
 
 .MetronomeContainer > .timeline > .timer > .time > span {
@@ -53,10 +54,50 @@
 	font-weight: 400;
 }
 
+.MetronomeContainer > .timeline > .timer > .ticks {
+	font-size: 22px;
+}
+
+.MetronomeContainer > .timeline > .timer > .ticks > span {
+	display: inline-block;
+	min-width: 80px;
+}
+
+.MetronomeContainer > .timeline > .timer > .ticks > .total {
+	margin-left: 8px;
+}
+
 .MetronomeContainer > .timeline > .timer > .bpm {
-	margin-bottom: 8px;
+	margin-bottom: 12px;
 	font-weight: 700;
 	color: var(--yellow);
+}
+
+.MetronomeContainer > .timeline > .timer > .dots {
+	--size: 28px;
+}
+
+.MetronomeContainer > .timeline > .timer > .dots > span {
+	display: inline-block;
+	width: var(--size);
+	height: var(--size);
+	margin-right: 16px;
+	background-color: var(--background-4);
+	border-radius: 12px;
+}
+
+.MetronomeContainer > .timeline > .timer > .dots > span[key="0"] {
+	padding-left: var(--size);
+}
+
+.MetronomeContainer > .timeline > .timer > .dots[data-tick="0"] > span[key="0"] {
+	background-color: var(--blue);
+}
+
+.MetronomeContainer > .timeline > .timer > .dots[data-tick="1"] > span[key="1"],
+.MetronomeContainer > .timeline > .timer > .dots[data-tick="2"] > span[key="2"],
+.MetronomeContainer > .timeline > .timer > .dots[data-tick="3"] > span[key="3"] {
+	background-color: var(--yellow);
 }
 
 .MetronomeContainer > .timeline > .graph {
@@ -486,6 +527,105 @@
 	position: absolute;
 	left: 20px;
 	top: 20px;
+}
+
+.MetronomeContainer > .view > .panels > .monitors > span {
+	position: relative;
+	display: inline-block;
+	margin: 10px 60px 60px 10px;
+
+	--width: 600px;
+	--height: 200px;
+}
+
+.MetronomeContainer > .view > .panels > .monitors > span > canvas {
+	display: block;
+	width: var(--width);
+	height: var(--height);
+}
+
+.MetronomeContainer > .view > .panels > .monitors > span > .ruler {
+	position: absolute;
+	top: 100%;
+	left: 0;
+	right: 0;
+	height: 40px;
+	border-top: 2px solid var(--background-5);
+}
+
+.MetronomeContainer > .view > .panels > .monitors > span > .ruler > span {
+	position: absolute;
+	padding-top: 12px;
+	font-size: 14px;
+	color: rgb(180, 180, 180);
+	transform: translateX(-50%);
+}
+
+.MetronomeContainer > .view > .panels > .monitors > span > .ruler > span::before {
+	content: "";
+	position: absolute;
+	display: block;
+	left: 50%;
+	transform: translateX(-50%);
+	top: 0;
+	width: 2px;
+	height: 6px;
+	background-color: var(--background-5);
+	opacity: 0.2;
+}
+
+.MetronomeContainer > .view > .panels > .monitors > span > .ruler > .label::before {
+	top: unset;
+	bottom: 26px;
+	height: calc(var(--height) + 7px);
+	background-color: var(--background-6);
+}
+
+.MetronomeContainer > .view > .panels > .monitors > span > .db {
+	position: absolute;
+	right: 0;
+	bottom: 0;
+	height: 100%;
+	transform: translateX(100%);
+}
+
+.MetronomeContainer > .view > .panels > .monitors > span > .db > div {
+	position: absolute;
+	transform: translateY(50%);
+	width: 36px;
+	font-size: 12px;
+	text-align: right;
+	color: rgb(180, 180, 180);
+}
+
+.MetronomeContainer > .view > .panels > .monitors > span > .db > div::before {
+	content: "";
+	position: absolute;
+	display: block;
+	
+	top: 50%;
+	transform: translateY(-50%);
+	height: 2px;
+	width: 8px;
+	left: 0;
+
+	background-color: var(--background-6);
+	opacity: 0.2;
+}
+
+.MetronomeContainer > .view > .panels > .monitors > span > .db > div.line::before,
+.MetronomeContainer > .view > .panels > .monitors > span > .db > div:last-child:before {
+	left: unset;
+	right: 22px;
+	width: calc(var(--width) + 14px);
+}
+
+.MetronomeContainer > .view > .panels > .monitors > span > label {
+	position: absolute;
+	left: 50%;
+	bottom: -60px;
+	transform: translateX(-50%);
+	text-align: center;
 }
 
 .MetronomeContainer > .view > .panels > .timing {
