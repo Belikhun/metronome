@@ -795,7 +795,7 @@ const metronome = {
 		// Calculate initial data point's count to get reduce ratio.
 		let sps = this.SAMPLE_PER_SEC;
 		let count = length * sps;
-		let ratio = Math.max(Math.round(count / this.graphWidth), 1);
+		let ratio = Math.max(Math.round(count / width), 1);
 		sps /= ratio;
 		
 		// New count
