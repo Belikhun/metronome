@@ -368,7 +368,7 @@ const metronome = {
 				return;
 			}
 
-			this.seek(this.seekTarget + (e.deltaY / 100) * (this.scale / 100));
+			this.seek(this.seekTarget + (e.deltaY * (1 / this.pxPerSecond)));
 		});
 
 		this.timeline.graph.progress.addEventListener("click", (e) => {
