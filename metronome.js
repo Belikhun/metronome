@@ -610,6 +610,12 @@ const metronome = {
 			let node = document.createElement("div");
 			node.style.bottom = `${(Math.abs(i - this.METER_MIN) / total) * 100}%`;
 			
+			if (i === this.METER_MIN) {
+				node.innerText = `db`;
+				node.classList.add("step");
+				addToMonitors = true;
+			}
+
 			if (i % this.METER_STEP === 0) {
 				node.innerText = i;
 				node.classList.add("step");
@@ -730,6 +736,7 @@ const metronome = {
 		this.clearLabels();
 		this.sampleDataPoints();
 		this.renderTicks();
+		this.resetMonitors();
 
 		await this.audioInit();
 		this.reset();
@@ -928,12 +935,14 @@ const metronome = {
 	 * @param	{Number}				options.width	Canvas width
 	 * @param	{Number}				options.height	Canvas height
 	 * @param	{Number}				options.space	Bar spacing
+	 * @param	{"line" | "bar"}		options.style	Canvas render style
 	 */
-	drawMonitor(canvas, data, {
+	drawMonitor(canvas, data = [], {
 		color = "#76d1ff",
 		width = undefined,
 		height = undefined,
-		space = 4
+		space = 4,
+		style = "line"
 	} = {}) {
 		if (typeof width === "number")
 			canvas.width = width;
@@ -947,38 +956,48 @@ const metronome = {
 
 		let ctx = canvas.getContext("2d");
 		ctx.clearRect(0, 0, width, height);
+
+		if (data.length === 0)
+			return;
 		
-		// Bar style
-		// ctx.fillStyle = color;
-		// let barWidth = (width - space * (data.length - 1)) / data.length;
-		// let x = 0, value = 0;
-
-		// for (let point of data) {
-		// 	value = scaleValue(point + 30, [this.METER_MIN, this.METER_MAX], [0, 1]);
-		// 	ctx.fillRect(x, height * (1 - value), barWidth, height);
-		// 	x += barWidth + space;
-		// }
-
-		// Line style
-		ctx.strokeStyle = color;
-		ctx.lineWidth = 3;
-		let barWidth = width / data.length;
-		let x = 0, value = 0;
-
-		for (let point of data) {
-			value = scaleValue(point + 30, [this.METER_MIN, this.METER_MAX], [0, 1]);
-
-			if (x === 0) {
-				// Initial point we do moveTo
-				ctx.moveTo(0, height * (1 - value));
-			} else {
-				ctx.lineTo(x, height * (1 - value));
+		if (style === "bar") {
+			// Bar style
+			ctx.fillStyle = color;
+			let barWidth = (width - space * (data.length - 1)) / data.length;
+			let x = 0, value = 0;
+	
+			for (let point of data) {
+				value = scaleValue(point + 30, [this.METER_MIN, this.METER_MAX], [0, 1]);
+				ctx.fillRect(x, height * (1 - value), barWidth, height);
+				x += barWidth + space;
 			}
-
-			x += barWidth;
+		} else {
+			// Line style
+			ctx.strokeStyle = color;
+			ctx.lineWidth = 3;
+			let barWidth = width / data.length;
+			let x = 0, value = 0;
+	
+			for (let point of data) {
+				value = scaleValue(point + 30, [this.METER_MIN, this.METER_MAX], [0, 1]);
+	
+				if (x === 0) {
+					// Initial point we do moveTo
+					ctx.moveTo(0, height * (1 - value));
+				} else {
+					ctx.lineTo(x, height * (1 - value));
+				}
+	
+				x += barWidth;
+			}
+	
+			ctx.stroke();
 		}
+	},
 
-		ctx.stroke();
+	resetMonitors() {
+		this.drawMonitor(this.monitors.left.canvas);
+		this.drawMonitor(this.monitors.right.canvas);
 	},
 
 	/**
