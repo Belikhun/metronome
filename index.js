@@ -17,7 +17,7 @@ const main = {
 	container: $("#app"),
 
 	audios: [
-		{ path: "audios/Viva Happy.mp3", bpm: 148, offset: -0.02, time: 52.68 },
+		{ path: "audios/Viva Happy.mp3", bpm: 148, offset: 0.385, time: 52.68 },
 		{ path: "audios/Let Me Go.mp3", bpm: 170, offset: 0.177 },
 		{ path: "audios/Tell Me Baby feat. mow 2.mp3", bpm: 170, offset: 0.540, time: 66.84 },
 		{ path: "audios/Artificial Snow.mp3", bpm: 256, offset: 1.416 },
@@ -35,7 +35,7 @@ const main = {
 	view: undefined,
 
 	async init() {
-		window.DEBUG = true;
+		window.DEBUG = false;
 
 		popup.init();
 		await metronome.init(this.container, { scale: 80 });
@@ -93,6 +93,7 @@ const main = {
 				return;
 
 			this.view.file.load.loading(true);
+			await nextFrameAsync();
 
 			try {
 				await metronome.load(file);
