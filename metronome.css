@@ -883,11 +883,11 @@
 
 	top: 5px;
 	font-size: 12px;
-	left: 50%;
-	transform: translateX(calc(-50% - 12px));
+	right: calc(50% + 6px);
 
 	font-size: 11px;
 	text-align: right;
+	white-space: nowrap;
 	pointer-events: none;
 }
 
@@ -904,6 +904,7 @@
 }
 
 .fineAdjustmentButton > .value[data-pos="right"] {
-	transform: translateX(calc(-50% + 12px));
+	left: unset;
+	left: calc(50% + 6px);
 	text-align: left;
 }

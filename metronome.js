@@ -32,7 +32,7 @@ const metronome = {
 
 	SAMPLE_PER_SEC: 600,
 
-	METER_MIN: -39,
+	METER_MIN: -49,
 	METER_MAX: 5,
 	METER_STEP: 5,
 	METER_LINE: 10,
@@ -314,8 +314,21 @@ const metronome = {
 				offset: { tag: "div", class: "offset", child: {
 					adjust: this.createAdjustmentButton({
 						label: "Độ trễ",
-						steps: [1, 2, 5, 10],
-						onInput: (value) => this.offset = this.currentOffset + (value / 1000)
+						steps: [1, 2, 5, 10, "1 tick"],
+						onInput: (value) => {
+							switch (value) {
+								case "1 tick":
+									this.offset -= this.timePerBeat;
+									break;
+
+								case "-1 tick":
+									this.offset += this.timePerBeat;
+									break;
+
+								default:
+									this.offset += (value / 1000);
+							}
+						}
 					}),
 
 					input: createOscInput({
@@ -328,8 +341,21 @@ const metronome = {
 				bpm: { tag: "div", class: "bpm", child: {
 					adjust: this.createAdjustmentButton({
 						label: "BPM",
-						steps: [0.1, 0.2, 0.5, 1],
-						onInput: (value) => this.bpm = this.currentBPM + value
+						steps: [0.1, 0.2, 0.5, 1, "x2"],
+						onInput: (value) => {
+							switch (value) {
+								case "x2":
+									this.bpm *= 2;
+									break;
+
+								case "/2":
+									this.bpm /= 2;
+									break;
+
+								default:
+									this.bpm += value;
+							}
+						}
 					}),
 
 					input: createOscInput({
@@ -466,7 +492,7 @@ const metronome = {
 	 * @param		{String}						options.label
 	 * @param		{Number[]}						options.steps
 	 * @param		{Number}						options.holdInterval
-	 * @param		{(value: Number) => any}		options.onInput
+	 * @param		{(value: Number|String) => any}	options.onInput
 	 * @returns 
 	 */
 	createAdjustmentButton({
@@ -509,7 +535,7 @@ const metronome = {
 
 			if (index > -1) {
 				container.value.classList.add("show");
-				container.value.innerText = `+${step}`;
+				container.value.innerText = (step[0] === "x") ? step : `+${step}`;
 				container.value.dataset.pos = "right";
 
 				for (let i = 0; i <= index; i++)
@@ -561,12 +587,15 @@ const metronome = {
 				}, 500);
 			});
 
-			button.addEventListener("mouseup", () => reset());
+			window.addEventListener("mouseup", () => reset());
 		}
 
 		// Decrease buttons
 		for (let [i, step] of steps.reverse().entries()) {
-			step = -step;
+			step = (typeof step === "number")
+				? -step
+				: (step[0] === "x" ? step.replace("x", "/") : `-${step}`);
+
 			let button = document.createElement("span");
 			button.dataset.index = i;
 			button.dataset.value = step;
@@ -1613,10 +1642,14 @@ const metronome = {
 		this.reset();
 		this.renderTicks();
 		this.renderWaveform();
-		this.renderComparator(this.comparatorCurrentTick, true);
+		this.renderComparator(Math.floor(this.tick), true);
 		this.updateOffsetWidth();
 		this.updateDurationView();
 		this.updateTimelineProgress();
+	},
+
+	get bpm() {
+		return this.currentBPM;
 	},
 
 	/**
