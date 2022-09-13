@@ -550,7 +550,7 @@
 	display: inline-block;
 	margin: 30px 60px 60px 10px;
 
-	--width: 740px;
+	--width: min(calc(100vw - 290px), 560px);
 	--height: 220px;
 }
 
