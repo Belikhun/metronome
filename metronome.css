@@ -221,6 +221,16 @@
 	transform: translateY(-50%);
 }
 
+.MetronomeContainer > .timeline > .graph > .overlay {
+	position: absolute;
+	display: block;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: var(--progress);
+	cursor: e-resize;
+}
+
 .MetronomeContainer > .timeline > .graph > .progress {
 	position: absolute;
 	left: 0;

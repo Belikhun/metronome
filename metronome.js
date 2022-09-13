@@ -236,6 +236,7 @@ const metronome = {
 
 				cursor: { tag: "img", class: "cursor", src: "parts/timeCursor.svg" },
 				loading: { tag: "div", class: "spinner" },
+				overlay: { tag: "div", class: "overlay" },
 
 				progress: { tag: "div", class: "progress", child: {
 					canvas: { tag: "canvas" },
@@ -445,7 +446,8 @@ const metronome = {
 
 		this.loading = true;
 
-		// Events
+		//* ========================= Events =========================
+
 		this.timeline.buttons.play.addEventListener("click", () => this.toggle());
 		this.timeline.buttons.stop.addEventListener("click", () => this.stop());
 		this.timeline.buttons.sub.prevTick.addEventListener("click", () => this.seekLastTick());
@@ -469,7 +471,12 @@ const metronome = {
 			this.seek(this.audio.duration * (posX / this.graphWidth));
 		});
 
-		// Init
+		// Dragging timeline
+		this.timeline.graph.overlay.addEventListener("mousedown", (e) => this.startTimelineDrag(e));
+		window.addEventListener("mouseup", () => this.endTimelineDrag());
+
+		//* ========================= Init =========================
+
 		this.meters.style.setProperty("--rate", `${this.METER_UPDATE}ms`);
 		this.bpm = bpm;
 		this.scale = scale;
@@ -478,6 +485,56 @@ const metronome = {
 
 		await this.initSounds();
 		this.loading = false;
+	},
+
+	timelineDragging: false,
+	timelineDragStart: 0,
+	timelineDragStartTime: 0,
+	timelineDragLastTick: 0,
+	timelineDragDelta: 0,
+	timelineDragUpdater: undefined,
+
+	/**
+	 * Setup timeline for dragging
+	 * @param {MouseEvent} e
+	 */
+	startTimelineDrag(e) {
+		if (this.playing)
+			return;
+
+		this.timelineDragStart = e.clientX;
+		this.timelineDragStartTime = this.time;
+		this.timelineDragLastTick = 0;
+		this.timelineDragDelta = 0;
+		this.timelineDragUpdater = (e) => this.updateTimelineDrag(e);
+		this.timelineDragging = true;
+		window.addEventListener("mousemove", this.timelineDragUpdater);
+	},
+
+	/**
+	 * Update dragging
+	 * @param {MouseEvent} e
+	 */
+	updateTimelineDrag(e) {
+		let delta = e.clientX - this.timelineDragStart;
+		this.timelineDragDelta = delta - this.timelineDragLastTick;
+		this.timelineDragLastTick = delta;
+		this.time = this.timelineDragStartTime - (delta / this.pxPerSecond);
+	},
+
+	/**
+	 * Update dragging
+	 * @param {MouseEvent} e
+	 */
+	endTimelineDrag() {
+		if (!this.timelineDragging)
+			return;
+
+		if (this.timelineDragDelta < -10 || this.timelineDragDelta > 10)
+			this.seek(this.time - ((this.timelineDragDelta * 4) / this.pxPerSecond));
+
+		window.removeEventListener("mousemove", this.timelineDragUpdater);
+		this.timelineDragUpdater = undefined;
 	},
 
 	/**
@@ -1746,6 +1803,9 @@ const metronome = {
 	set time(currentTime) {
 		if (!this.audio.instance)
 			return;
+			
+		currentTime = Math.max(0, currentTime);
+		currentTime = Math.min(this.audio.duration, currentTime);
 
 		this.currentTime = currentTime;
 		let pt = parseTime(currentTime, { msDigit: 3 });
