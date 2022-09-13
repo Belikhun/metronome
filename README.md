@@ -1,9 +1,9 @@
 # ⏱ metronome
 
-## A (kind-of) simple metronome for calculating BPM and offset
+## An advanced metronome for calculating BPM and offset of audio file.
 
 ---
 
-![image](https://user-images.githubusercontent.com/19252372/189542267-0d948742-3e7a-40d3-aaed-2becc22d2ca7.png)
+![image](https://user-images.githubusercontent.com/19252372/189981427-87205a81-6cc7-45bd-a949-1140c1cdddf2.png)
 
-For demo you can go to [https://belikhun.github.io/metronome](https://belikhun.github.io/metronome/)
+For live demo you can go to [https://belikhun.github.io/metronome](https://belikhun.github.io/metronome/)
