@@ -79,6 +79,7 @@ const metronome = {
 
 	updateRequest: undefined,
 	meterResetTimeout: undefined,
+	lastFrameStart: undefined,
 	isLoading: false,
 	reUpdate: false,
 	alternate: false,
@@ -90,6 +91,12 @@ const metronome = {
 
 	/** @type {Object<number, HTMLElement[]>} */
 	labels: [],
+
+	FPS_SAMPLES: 60,
+	fpsValues: [],
+
+	UT_SAMPLES: 60,
+	utValues: [],
 
 	/**
 	 * @typedef {{
@@ -312,24 +319,33 @@ const metronome = {
 
 			controls: { tag: "div", class: "controls", child: {
 				offset: { tag: "div", class: "offset", child: {
-					adjust: this.createAdjustmentButton({
-						label: "Độ trễ",
-						steps: [1, 2, 5, 10, "1 tick"],
-						onInput: (value) => {
-							switch (value) {
-								case "1 tick":
-									this.offset -= this.timePerBeat;
-									break;
-
-								case "-1 tick":
-									this.offset += this.timePerBeat;
-									break;
-
-								default:
-									this.offset += (value / 1000);
+					top: { tag: "div", class: "top", child: {
+						adjust: this.createAdjustmentButton({
+							label: "Độ trễ",
+							steps: [1, 2, 5, 10, "1 tick"],
+							onInput: (value) => {
+								switch (value) {
+									case "1 tick":
+										this.offset -= this.timePerBeat;
+										break;
+	
+									case "-1 tick":
+										this.offset += this.timePerBeat;
+										break;
+	
+									default:
+										this.offset += (value / 1000);
+								}
 							}
-						}
-					}),
+						}),
+
+						now: createButton("NOW", {
+							style: "round",
+							icon: "stopwatch",
+							complex: true,
+							onClick: () => this.offset = this.time
+						})
+					}},
 
 					input: createOscInput({
 						label: "Độ trễ",
@@ -406,6 +422,11 @@ const metronome = {
 			panels: { tag: "span", class: "panels", child: {
 				waves: this.monitors,
 				timing: this.timingPanel
+			}},
+
+			fps: { tag: "span", class: "fps", child: {
+				value: { tag: "div", class: "value", text: "not running" },
+				time: { tag: "div", class: "time", text: "∞ μs" }
 			}}
 		});
 
@@ -1147,12 +1168,18 @@ const metronome = {
 	startUpdate() {
 		cancelAnimationFrame(this.updateRequest);
 		this.reUpdate = true;
+		this.lastFrameStart = performance.now();
 		this.reset();
 		this.update();
 	},
 
 	stopUpdate() {
 		this.reUpdate = false;
+		this.lastFrameStart = undefined;
+		this.view.fps.value.innerText = "not running";
+		this.view.fps.value.dataset.color = "default";
+		this.view.fps.time.innerText = "∞ μs";
+		this.view.fps.time.dataset.color = "default";
 		cancelAnimationFrame(this.updateRequest);
 	},
 
@@ -1200,6 +1227,34 @@ const metronome = {
 		}
 
 		this.alternate = !this.alternate;
+
+		// Update fps
+		// This, I don't want to create new variable, so
+		// using existing variable to store while updating
+		// now value;
+		let duration = now;
+		now = performance.now();
+		duration = now - duration;
+
+		let fTime = now - this.lastFrameStart;
+		let fps = 1 / (fTime / 1000);
+		this.lastFrameStart = now;
+
+		this.fpsValues.push(fps);
+		this.utValues.push(duration);
+
+		if (this.fpsValues.length > this.FPS_SAMPLES)
+			this.fpsValues.shift();
+
+		if (this.utValues.length > this.UT_SAMPLES)
+			this.utValues.shift();
+
+		fps = this.fpsValues.reduce((a, b) => a + b, 0) / this.fpsValues.length;
+		duration = this.utValues.reduce((a, b) => a + b, 0) / this.utValues.length;
+		this.view.fps.value.innerText = `${fps.toFixed(2)} fps`;
+		this.view.fps.value.dataset.color = (fps > 30) ? "green" : ((fps > 10) ? "yellow" : "red");
+		this.view.fps.time.innerText = `${(duration * 1000).toFixed(1)}μs`;
+		this.view.fps.time.dataset.color = (duration < 0.6) ? "green" : ((duration < 2) ? "yellow" : "red");
 
 		if (this.audio.instance.paused) {
 			this.completed();
@@ -1394,6 +1449,9 @@ const metronome = {
 
 		let value = Math.sqrt(sum / data.length);
 		let db = 10 * Math.log(value) * Math.LOG10E;
+
+		if (db >= -1)
+			this.meters[channel].clip.classList.add("active");
 		
 		if (db < this.METER_MIN || db == -Infinity) {
 			this.meters[channel].bar.style.height = `0`;
@@ -1428,9 +1486,11 @@ const metronome = {
 			this.meters.left.max.style.bottom = `0`;
 			this.meters.left.bar.style.height = `0`;
 			this.meters.left.value.innerText = `-∞ db`;
+			this.meters.left.clip.classList.remove("active");
 			this.meters.right.max.style.bottom = `0`;
 			this.meters.right.bar.style.height = `0`;
 			this.meters.right.value.innerText = `-∞ db`;
+			this.meters.right.clip.classList.remove("active");
 		}, 500);
 	},
 

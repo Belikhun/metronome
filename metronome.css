@@ -12,6 +12,7 @@
 	--background-10: #899aa7;
 	--background-11: #93a6b4;
 
+	--green: #b3ff80;
 	--blue: #66CDFE;
 	--yellow: #FFD966;
 
@@ -107,7 +108,7 @@
 
 	height: 120px;
 	--labels: 20px;
-	--progress: 30px;
+	--progress: 34px;
 
 	padding-top: var(--labels);
 	padding-bottom: var(--progress);
@@ -478,6 +479,10 @@
 	background-color: rgb(46, 26, 26);
 }
 
+.MetronomeContainer > .view > .meters > .channel > .clip.active {
+	background-color: rgb(255, 99, 99);
+}
+
 .MetronomeContainer > .view > .meters > .channel > .max {
 	position: absolute;
 	display: block;
@@ -652,8 +657,45 @@
 	margin-bottom: 32px;
 }
 
+.MetronomeContainer > .view > .panels > .timing > .controls > div > .top {
+	display: flex;
+	flex-direction: row;
+	margin-bottom: 10px;
+}
+
+.MetronomeContainer > .view > .panels > .timing > .controls > div > .top > * {
+	margin-bottom: 0;
+	margin-right: 16px;
+}
+
 .MetronomeContainer > .view > .panels > .timing > .inputs > .osc-input {
 	margin-bottom: 10px;
+}
+
+.MetronomeContainer > .view > .fps {
+	position: absolute;
+	bottom: 20px;
+	right: 20px;
+	padding: 6px 10px;
+	border-radius: 8px;
+
+	font-family: var(--code-font);
+	font-size: 15px;
+	font-weight: bold;
+	text-align: right;
+	background-color: rgba(0, 0, 0, 0.4);
+}
+
+.MetronomeContainer > .view > .fps > div[data-color="green"] {
+	color: var(--green);
+}
+
+.MetronomeContainer > .view > .fps > div[data-color="yellow"] {
+	color: var(--yellow);
+}
+
+.MetronomeContainer > .view > .fps > div[data-color="red"] {
+	color: var(--osc-color-red);
 }
 
 .MetronomeContainer .osc-input {
