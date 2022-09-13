@@ -327,11 +327,11 @@ const metronome = {
 							onInput: (value) => {
 								switch (value) {
 									case "1 tick":
-										this.offset -= this.timePerBeat;
+										this.offset += this.timePerBeat;
 										break;
 	
 									case "-1 tick":
-										this.offset += this.timePerBeat;
+										this.offset -= this.timePerBeat;
 										break;
 	
 									default:
@@ -358,7 +358,7 @@ const metronome = {
 				bpm: { tag: "div", class: "bpm", child: {
 					adjust: this.createAdjustmentButton({
 						label: "BPM",
-						steps: [0.1, 0.2, 0.5, 1, "x2"],
+						steps: [0.1, 0.2, 0.5, 1, 2, "x2"],
 						onInput: (value) => {
 							switch (value) {
 								case "x2":
