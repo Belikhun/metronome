@@ -341,6 +341,7 @@ const metronome = {
 						}),
 
 						now: createButton("NOW", {
+							element: "div",
 							style: "round",
 							icon: "stopwatch",
 							complex: true,
