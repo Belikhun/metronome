@@ -35,7 +35,7 @@ const main = {
 	view: undefined,
 
 	async init() {
-		window.DEBUG = false;
+		window.DEBUG = true;
 
 		popup.init();
 		await metronome.init(this.container, { scale: 80 });

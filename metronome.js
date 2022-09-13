@@ -383,6 +383,11 @@ const metronome = {
 				}}
 			}},
 
+			tap: { tag: "div", class: "tap", child: {
+				label: { tag: "div", class: "label", text: "chạm" },
+				info: { tag: "div", class: "info", html: `hoặc dùng phím <code>T</code>` }
+			}},
+
 			inputs: { tag: "div", class: "inputs", child: {
 				timeAdjust: this.createAdjustmentButton({
 					label: "Thời gian",
@@ -470,6 +475,8 @@ const metronome = {
 			let posX = e.clientX - rect.x;
 			this.seek(this.audio.duration * (posX / this.graphWidth));
 		});
+
+		this.timingPanel.tap.addEventListener("click", () => this.tapBPM());
 
 		// Dragging timeline
 		this.timeline.graph.overlay.addEventListener("mousedown", (e) => this.startTimelineDrag(e));
@@ -559,9 +566,83 @@ const metronome = {
 				this.seekLastTick();
 				break;
 
+			case "KeyT":
+				this.tapBPM();
+				break;
+
 			default:
+				this.log("DEBG", `key press = ${event.code}`);
 				break;
 		}
+	},
+
+	tapStart: 0,
+	tapCount: 0,
+	tapping: false,
+	tapEndTimeout: undefined,
+	tapResetTimeout: undefined,
+	tapLastTime: undefined,
+	tapSamples: [],
+
+	TAP_SAMPLES: 16,
+
+	set tapBPMInfo(/** @type {String} */ info) {
+		this.timingPanel.tap.info.innerHTML = info;
+	},
+
+	async tapBPM() {
+		clearTimeout(this.tapEndTimeout);
+		clearTimeout(this.tapResetTimeout);
+
+		// Tap init
+		if (!this.tapping) {
+			this.timingPanel.tap.classList.add("tapping");
+			this.tapSamples = []
+			this.tapping = true;
+			this.tapCount = 0;
+		}
+
+		let now = performance.now();
+		this.tapCount += 1;
+		this.playSound((this.tapCount % 4 === 0)
+			? this.sounds.tickDownbeat
+			: this.sounds.tick);
+		
+		this.timingPanel.tap.classList.remove("tapped");
+		await nextFrameAsync();
+		this.timingPanel.tap.classList.add("tapped");
+
+		if (this.tapLastTime)
+			this.tapSamples.push(now - this.tapLastTime);
+		
+		if (this.tapSamples.length > this.TAP_SAMPLES)
+			this.tapSamples.shift();
+
+		this.tapLastTime = now;
+
+		if (this.tapCount <= 4) {
+			this.tapBPMInfo = "O".repeat(this.tapCount);
+		} else {
+			let avg = this.tapSamples.reduce((a, b) => a + b, 0) / this.tapSamples.length;
+			let bpm = Math.round(60 / (avg / 1000));
+			this.tapBPMInfo = `${bpm} BPM`;
+			this.bpm = bpm;
+		}
+
+		this.tapResetTimeout = setTimeout(() => this.timingPanel.tap.classList.remove("tapped"), 600);
+		this.tapEndTimeout = setTimeout(() => this.endTapBPM(), 2000);
+	},
+
+	async endTapBPM() {
+		if (!this.tapping)
+			return;
+
+		clearTimeout(this.tapEndTimeout);
+		this.timingPanel.tap.classList.remove("tapping");
+		this.tapBPMInfo = `hoặc dùng phím <code>T</code>`;
+		this.tapping = false;
+		this.tapCount = 0;
+		this.tapLastTime = undefined;
 	},
 
 	/**
@@ -1583,8 +1664,9 @@ const metronome = {
 			return;
 		}
 
-		// Play sound first
-		if (tick !== "no")
+		// Play sound first, and only play sound when we are not
+		// tapping BPM.
+		if (tick !== "no" && !this.tapping)
 			this.tickSound(tick);
 
 		let target = this.swingLeft ? 30 : -30;

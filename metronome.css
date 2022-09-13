@@ -11,6 +11,7 @@
 	--background-9: #81929e;
 	--background-10: #899aa7;
 	--background-11: #93a6b4;
+	--background-12: #acc2d1;
 
 	--green: #b3ff80;
 	--blue: #66CDFE;
@@ -549,8 +550,8 @@
 	display: inline-block;
 	margin: 30px 60px 60px 10px;
 
-	--width: 600px;
-	--height: 200px;
+	--width: 740px;
+	--height: 220px;
 }
 
 .MetronomeContainer > .view > .panels > .monitors > span > canvas {
@@ -644,6 +645,7 @@
 }
 
 .MetronomeContainer > .view > .panels > .timing {
+	position: relative;
 	display: flex;
 	flex-direction: row;
 	flex-wrap: wrap;
@@ -678,6 +680,54 @@
 	margin-right: 16px;
 }
 
+.MetronomeContainer > .view > .panels > .timing > .tap {
+	display: grid;
+	place-content: center;
+
+	width: 300px;
+	margin-bottom: 40px;
+	border-radius: 32px;
+
+	text-align: center;
+	cursor: pointer;
+	transition: background-color 1s cubic-bezier(0.33, 1, 0.68, 1);
+	background-color: var(--background-4);
+}
+
+.MetronomeContainer > .view > .panels > .timing > .tap.tapping {
+	background-color: var(--background-7);
+}
+
+.MetronomeContainer > .view > .panels > .timing > .tap.tapped {
+	animation-name: bpm-tap;
+	animation-duration: 0.6s;
+	animation-timing-function: cubic-bezier(0.33, 1, 0.68, 1);
+	animation-fill-mode: forwards;
+	animation-iteration-count: 1;
+}
+
+.MetronomeContainer > .view > .panels > .timing > .tap > .label {
+	font-size: 32px;
+}
+
+.MetronomeContainer > .view > .panels > .timing > .tap > .info {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	justify-content: center;
+
+	margin-top: 4px;
+	font-size: 18px;
+	text-align: center;
+}
+
+.MetronomeContainer > .view > .panels > .timing > .tap > .info > code {
+	background-color: var(--background-3);
+	margin-left: 8px;
+	padding: 4px 8px;
+	border-radius: 8px;
+}
+
 .MetronomeContainer > .view > .panels > .timing > .inputs > .osc-input {
 	margin-bottom: 10px;
 }
@@ -694,6 +744,10 @@
 	font-weight: bold;
 	text-align: right;
 	background-color: rgba(0, 0, 0, 0.4);
+}
+
+.MetronomeContainer > .view > .fps > .value {
+	font-size: 18px;
 }
 
 .MetronomeContainer > .view > .fps > div[data-color="green"] {
@@ -728,6 +782,11 @@
 @keyframes swing-beat {
 	0% { background-color: #b9e8ff; }
 	100% { background-color: #47B4EB; }
+}
+
+@keyframes bpm-tap {
+	from { background-color: var(--background-12); }
+	to { background-color: var(--background-7); }
 }
 
 
