@@ -543,6 +543,9 @@ const metronome = {
 
 		window.removeEventListener("mousemove", this.timelineDragUpdater);
 		this.timelineDragUpdater = undefined;
+		this.timelineDragLastTick = 0;
+		this.timelineDragDelta = 0;
+		this.timelineDragging = false;
 	},
 
 	/**
