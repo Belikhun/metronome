@@ -1123,14 +1123,16 @@ const metronome = {
 	 * @param	{HTMLCanvasElement}		canvas
 	 * @param	{Number[] | Uint8Array}	data
 	 * @param	{Object}				options
-	 * @param	{Number}				options.color	Wave color
-	 * @param	{Number}				options.width	Canvas width
-	 * @param	{Number}				options.height	Canvas height
-	 * @param	{Number}				options.space	Bar spacing
-	 * @param	{"line" | "bar"}		options.style	Canvas render style
+	 * @param	{Number}				options.color		Wave color
+	 * @param	{Number}				options.avgColor	Average line color
+	 * @param	{Number}				options.width		Canvas width
+	 * @param	{Number}				options.height		Canvas height
+	 * @param	{Number}				options.space		Bar spacing
+	 * @param	{"line" | "bar"}		options.style		Canvas render style
 	 */
 	drawMonitor(canvas, data = [], {
 		color = "#76d1ff",
+		avgColor = "#b3ff80",
 		width = undefined,
 		height = undefined,
 		space = 4,
@@ -1148,6 +1150,8 @@ const metronome = {
 
 		let ctx = canvas.getContext("2d");
 		ctx.clearRect(0, 0, width, height);
+		ctx.beginPath();
+		let sum = 0;
 
 		if (data.length === 0)
 			return;
@@ -1159,8 +1163,11 @@ const metronome = {
 			let x = 0, value = 0;
 	
 			for (let point of data) {
-				value = scaleValue(point + 30, [this.METER_MIN, this.METER_MAX], [0, 1]);
-				ctx.fillRect(x, height * (1 - value), barWidth, height);
+				value = scaleValue(point + 50, [this.METER_MIN, this.METER_MAX], [0, 1]);
+				value = height * (1 - value);
+
+				ctx.fillRect(x, value, barWidth, height);
+				sum += value;
 				x += barWidth + space;
 			}
 		} else {
@@ -1171,20 +1178,25 @@ const metronome = {
 			let x = 0, value = 0;
 	
 			for (let point of data) {
-				value = scaleValue(point + 30, [this.METER_MIN, this.METER_MAX], [0, 1]);
+				value = scaleValue(point + 50, [this.METER_MIN, this.METER_MAX], [0, 1]);
+				value = height * (1 - value);
 	
-				if (x === 0) {
-					// Initial point we do moveTo
-					ctx.moveTo(0, height * (1 - value));
-				} else {
-					ctx.lineTo(x, height * (1 - value));
-				}
-	
+				(x === 0) ? ctx.moveTo(0, value) : ctx.lineTo(x, value);
+				sum += value;
 				x += barWidth;
 			}
 	
 			ctx.stroke();
 		}
+
+		// Draw average line
+		let average = sum / data.length;
+		ctx.strokeStyle = avgColor;
+		ctx.lineWidth = 2;
+		ctx.beginPath();
+		ctx.moveTo(0, average);
+		ctx.lineTo(width, average);
+		ctx.stroke();
 	},
 
 	resetMonitors() {
@@ -1592,7 +1604,7 @@ const metronome = {
 			sum += amplitude * amplitude;
 
 		let value = Math.sqrt(sum / data.length);
-		let db = 10 * Math.log(value) * Math.LOG10E;
+		let db = 20 * Math.log(value) * Math.LOG10E;
 
 		if (db >= -1)
 			this.meters[channel].clip.classList.add("active");
