@@ -1336,22 +1336,24 @@ const metronome = {
 		let oTime = this.time - this.offset;
 		let tick = oTime / this.timePerBeat;
 
-		if (oTime > -this.timePerBeat) {
-			// Sudden timing change to main tick,
-			// update current tick.
-			if (Math.abs(tick - this.currentTick) >= 1.2)
-				this.currentTick = Math.floor(tick) - 1;
-	
-			if (tick > (this.currentTick + 1)) {
-				this.currentTick = Math.floor(tick);
+		// Sudden timing change to main tick,
+		// update current tick.
+		if (Math.abs(tick - this.currentTick) >= 1.2)
+			this.currentTick = Math.floor(tick) - 1;
+		
+		if (tick > (this.currentTick + 1)) {
+			this.currentTick = Math.floor(tick);
+
+			if (oTime > -this.timePerBeat) {
 				let nextTickTime = (this.currentTick + 1) * this.timePerBeat;
 				let toNextTick = nextTickTime - oTime;
 				let shouldTick = Math.abs(toNextTick - this.timePerBeat) < 0.05;
-	
+
 				this.log("DEBG", "------ tick", this.currentTick, `nextTickTime = ${nextTickTime}`, `toNextTick = ${toNextTick}`, `shouldTick = ${shouldTick}`);
 				this.swing(toNextTick, shouldTick ? this.currentTick : "no");
-				this.renderComparator(this.currentTick);
 			}
+
+			this.renderComparator(this.currentTick);
 		}
 
 		// Update left right data
@@ -1690,10 +1692,6 @@ const metronome = {
 			return;
 
 		this.timingPanel.top.metronome.swing.classList.remove("beat");
-
-		// First tick, only swing first half.
-		if (tick === 0 && start === 0)
-			return;
 
 		// Do the other half
 		start = this.currentSwingRotate;
