@@ -882,7 +882,7 @@ const metronome = {
 		if (this.playing)
 			await this.pause();
 
-		if (this.audio.instance && this.audio.instance.tagName === "video") {
+		if (this.audio.instance && this.audio.instance.tagName === "VIDEO") {
 			this.monitors.removeChild(this.audio.instance);
 			this.audio.instance = undefined;
 		}
