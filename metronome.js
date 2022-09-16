@@ -869,34 +869,46 @@ const metronome = {
 	},
 
 	/**
-	 * Prepare a audio file
-	 * @param	{String|File}	audio
+	 * Prepare an audio/video file
+	 * @param	{String|File}	file
 	 */
-	async load(audio) {
+	async load(file) {
 		if (this.loading)
-			throw { code: -1, description: `metronome.load(): another audio is already loading!` }
+			throw { code: -1, description: `metronome.load(): another audio/video is already loading!` }
 
 		this.loading = true;
-		this.log("INFO", `loading`, audio);
+		this.log("INFO", `loading`, file);
 
 		if (this.playing)
 			await this.pause();
 
+		if (this.audio.instance && this.audio.instance.tagName === "video") {
+			this.monitors.removeChild(this.audio.instance);
+			this.audio.instance = undefined;
+		}
+
 		this.audio.context = new AudioContext();
 
 		try {
-			if (typeof audio === "string") {
-				let response = await fetch(audio);
+			if (typeof file === "string") {
+				let response = await fetch(file);
 
 				if (!response.ok)
 					throw response;
 
 				let clone = response.clone();
+				let url = URL.createObjectURL(await clone.blob());
 				this.audio.buffer = await this.audio.context.decodeAudioData(await response.arrayBuffer());
-				this.audio.instance = new Audio(URL.createObjectURL(await clone.blob()));
+				
+				if (file.endsWith("mp4") || file.endsWith("webm")) {
+					this.audio.instance = document.createElement("video");
+					this.audio.instance.src = url;
+					this.monitors.appendChild(this.audio.instance);
+				} else
+					this.audio.instance = new Audio(url);
 			} else {
 				let reader = new FileReader();
-				reader.readAsArrayBuffer(audio);
+				reader.readAsArrayBuffer(file);
 
 				let buffer = await new Promise((resolve, reject) => {
 					reader.addEventListener("error", (e) => reject(e));
@@ -904,10 +916,17 @@ const metronome = {
 				});
 
 				this.audio.buffer = await this.audio.context.decodeAudioData(buffer);
-				this.audio.instance = new Audio(URL.createObjectURL(audio));
+				
+				let url = URL.createObjectURL(file);
+				if (file.type.startsWith("video")) {
+					this.audio.instance = document.createElement("video");
+					this.audio.instance.src = url;
+					this.monitors.appendChild(this.audio.instance);
+				} else
+					this.audio.instance = new Audio(url);
 			}
 		} catch(error) {
-			let e = { code: -1, description: `failed to load audio file "${audio}"`, data: error }
+			let e = { code: -1, description: `failed to load audio/video file "${file}"`, data: error }
 			errorHandler(e);
 			this.loading = false;
 			throw e;
@@ -915,10 +934,10 @@ const metronome = {
 
 		// Check audio not fully loaded
 		if (this.audio.instance.readyState < 4) {
-			this.log("INFO", "Audio is not fully loaded, wait for it to fully load...");
+			this.log("INFO", "Audio/video is not fully loaded, wait for it to fully load...");
 
 			await new Promise((resolve) => {
-				this.log("OKAY", "Audio loaded.");
+				this.log("OKAY", "Audio/video loaded.");
 				this.audio.instance.addEventListener("canplaythrough", () => resolve());
 			});
 		}
@@ -1136,7 +1155,8 @@ const metronome = {
 		width = undefined,
 		height = undefined,
 		space = 4,
-		style = "line"
+		style = "line",
+		offset = 50
 	} = {}) {
 		if (typeof width === "number")
 			canvas.width = width;
@@ -1163,11 +1183,11 @@ const metronome = {
 			let x = 0, value = 0;
 	
 			for (let point of data) {
-				value = scaleValue(point + 50, [this.METER_MIN, this.METER_MAX], [0, 1]);
+				value = scaleValue(point + offset, [this.METER_MIN, this.METER_MAX], [0, 1]);
 				value = height * (1 - value);
 
 				ctx.fillRect(x, value, barWidth, height);
-				sum += value;
+				sum += point;
 				x += barWidth + space;
 			}
 		} else {
@@ -1178,11 +1198,11 @@ const metronome = {
 			let x = 0, value = 0;
 	
 			for (let point of data) {
-				value = scaleValue(point + 50, [this.METER_MIN, this.METER_MAX], [0, 1]);
+				value = scaleValue(point + offset, [this.METER_MIN, this.METER_MAX], [0, 1]);
 				value = height * (1 - value);
 	
 				(x === 0) ? ctx.moveTo(0, value) : ctx.lineTo(x, value);
-				sum += value;
+				sum += (point + offset);
 				x += barWidth;
 			}
 	
@@ -1191,6 +1211,8 @@ const metronome = {
 
 		// Draw average line
 		let average = sum / data.length;
+		average = scaleValue(average, [this.METER_MIN, this.METER_MAX], [0, 1]);
+		average = height * (1 - average);
 		ctx.strokeStyle = avgColor;
 		ctx.lineWidth = 2;
 		ctx.beginPath();

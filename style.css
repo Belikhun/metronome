@@ -48,6 +48,10 @@ tag {
 	flex-direction: column;
 }
 
+.MetronomeControlPanel > .loadFile > label {
+	margin-bottom: 10px;
+}
+
 .MetronomeControlPanel > .loadFile > input {
 	margin-bottom: 20px;
 }

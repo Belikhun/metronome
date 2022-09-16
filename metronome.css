@@ -545,12 +545,16 @@
 	top: 20px;
 }
 
+.MetronomeContainer > .view > .panels > .monitors {
+	align-items: center;
+}
+
 .MetronomeContainer > .view > .panels > .monitors > span {
 	position: relative;
 	display: inline-block;
 	margin: 30px 60px 60px 10px;
 
-	--width: min(calc(100vw - 290px), 560px);
+	--width: min(calc(100vw - 290px), 480px);
 	--height: 220px;
 }
 
@@ -644,6 +648,10 @@
 	text-align: center;
 }
 
+.MetronomeContainer > .view > .panels > .monitors > video {
+	width: 560px;
+}
+
 .MetronomeContainer > .view > .panels > .timing {
 	position: relative;
 	display: flex;
@@ -685,6 +693,7 @@
 	place-content: center;
 
 	width: 300px;
+	padding: 20px 0;
 	margin-bottom: 40px;
 	border-radius: 32px;
 

@@ -45,7 +45,8 @@ const main = {
 			audios: { tag: "div", class: "audios" },
 
 			file: { tag: "div", class: "loadFile", child: {
-				input: { tag: "input", type: "file" },
+				label: { tag: "label", text: "Load your audio/video file here" },
+				input: { tag: "input", type: "file", accept: "video/*,audio/*" },
 				load: createButton("LOAD", { style: "round", complex: true })
 			}},
 
