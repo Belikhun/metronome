@@ -1931,9 +1931,9 @@ const metronome = {
 
 		// I wish this font is fixed-width so I don't have
 		// to do this ugly hack...
-		this.timeline.timer.time.m1.innerText = pt.m > 10 ? `${pt.m}`[0] : "0";
+		this.timeline.timer.time.m1.innerText = pt.m < 10 ? "0" : `${pt.m}`[0];
 		this.timeline.timer.time.m2.innerText = pt.m % 10;
-		this.timeline.timer.time.s1.innerText = pt.s > 10 ? `${pt.s}`[0] : "0";
+		this.timeline.timer.time.s1.innerText = pt.s < 10 ? "0" : `${pt.s}`[0];
 		this.timeline.timer.time.s2.innerText = pt.s % 10;
 		this.timeline.timer.time.ms1.innerText = pt.ms[0];
 		this.timeline.timer.time.ms2.innerText = pt.ms[1];
