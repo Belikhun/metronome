@@ -17,6 +17,7 @@ const main = {
 	container: $("#app"),
 
 	audios: [
+		{ path: "audios/muffin time sped up.mp4", bpm: 153.6, offset: 0.834 },
 		{ path: "audios/Viva Happy.mp3", bpm: 148, offset: 0.385, time: 52.68 },
 		{ path: "audios/Let Me Go.mp3", bpm: 170, offset: 0.177 },
 		{ path: "audios/Tell Me Baby feat. mow 2.mp3", bpm: 170, offset: 0.540, time: 66.84 },
