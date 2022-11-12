@@ -17,14 +17,11 @@ const main = {
 	container: $("#app"),
 
 	audios: [
+		{ path: "audios/EPSILON LOVE.mp3", bpm: 150, offset: 1.008 },
 		{ path: "audios/muffin time sped up.mp4", bpm: 153.6, offset: 0.834 },
-		{ path: "audios/Viva Happy.mp3", bpm: 148, offset: 0.385, time: 52.68 },
 		{ path: "audios/Let Me Go.mp3", bpm: 170, offset: 0.177 },
-		{ path: "audios/Tell Me Baby feat. mow 2.mp3", bpm: 170, offset: 0.540, time: 66.84 },
 		{ path: "audios/Artificial Snow.mp3", bpm: 256, offset: 1.416 },
-		{ path: "audios/Eeny, Meeny....mp3", bpm: 130, offset: 0.15 },
 		{ path: "audios/paroxysm.mp3", bpm: 132, offset: 1.82 },
-		{ path: "audios/Spin Eternally.mp3", bpm: 222 },
 		{ path: "audios/test60.mp3", bpm: 60, offset: 0.130 },
 		{ path: "audios/metro_170bpm_5min.mp3", bpm: 170, offset: 0 }
 	],
