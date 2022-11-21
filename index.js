@@ -17,9 +17,10 @@ const main = {
 	container: $("#app"),
 
 	audios: [
+		{ path: "audios/ulysse m - arcade.webm", bpm: 128, offset: 2.050 },
+		{ path: "audios/Let Me Go.mp3", bpm: 170, offset: 0.530 },
 		{ path: "audios/EPSILON LOVE.mp3", bpm: 150, offset: 1.008 },
 		{ path: "audios/muffin time sped up.mp4", bpm: 153.6, offset: 0.834 },
-		{ path: "audios/Let Me Go.mp3", bpm: 170, offset: 0.177 },
 		{ path: "audios/Artificial Snow.mp3", bpm: 256, offset: 1.416 },
 		{ path: "audios/paroxysm.mp3", bpm: 132, offset: 1.82 },
 		{ path: "audios/test60.mp3", bpm: 60, offset: 0.130 },
